@@ -35,6 +35,7 @@ import {
   addTreeListingToPowerShellProfile,
   installPSReadLineModule,
   installTerminalIconsModule,
+  readPowerShellProfileFeatures,
 } from "./powershell.js";
 import { buildSummarySections, normalizeHex } from "./summary.js";
 import {
@@ -403,7 +404,20 @@ function getWindowsPowerShellProfiles(
 function readConfiguredAnswers(
   settingsPath: string | undefined,
 ): Record<string, SettingValue> {
-  if (!settingsPath) return {};
+  const answers: Record<string, SettingValue> = {};
+  try {
+    const profileFeatures = readPowerShellProfileFeatures();
+    if (profileFeatures.terminalIcons) answers.terminalIcons = true;
+    if (profileFeatures.historyPreview) answers.historyPreview = true;
+    if (profileFeatures.treeListing) answers.treeListing = true;
+  } catch (error) {
+    log.warn(
+      pc.yellow(
+        `Could not detect configured PowerShell features: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    );
+  }
+  if (!settingsPath) return answers;
 
   const content = readSettingsFile(settingsPath);
   const parseErrors: ParseError[] = [];
@@ -421,10 +435,9 @@ function readConfiguredAnswers(
         "Could not read existing settings.json values because the file contains invalid JSONC.",
       ),
     );
-    return {};
+    return answers;
   }
 
-  const answers: Record<string, SettingValue> = {};
   const profiles =
     "profiles" in parsed && parsed.profiles !== null
       ? parsed.profiles
@@ -678,7 +691,7 @@ async function applySettings(
 
 export async function runInstaller(): Promise<void> {
   console.log(pc.cyan(BANNER));
-  intro(pc.bold("Let's make your terminal yours."));
+  intro(pc.bold("Pimp up your Terminal."));
 
   const selectableSettings = settings.filter(
     (setting) =>

@@ -22,6 +22,11 @@ const mocks = vi.hoisted(() => {
     installPSReadLineModule: vi.fn(),
     addHistoryPreviewToPowerShellProfile: vi.fn(),
     addTreeListingToPowerShellProfile: vi.fn(),
+    readPowerShellProfileFeatures: vi.fn(() => ({
+      terminalIcons: false,
+      historyPreview: false,
+      treeListing: false,
+    })),
     createSettingsBackup: vi.fn(),
     listSettingsBackups: vi.fn(() => []),
     restoreSettingsBackup: vi.fn(),
@@ -104,6 +109,7 @@ vi.mock("../src/powershell", () => ({
   installPSReadLineModule: mocks.installPSReadLineModule,
   addHistoryPreviewToPowerShellProfile: mocks.addHistoryPreviewToPowerShellProfile,
   addTreeListingToPowerShellProfile: mocks.addTreeListingToPowerShellProfile,
+  readPowerShellProfileFeatures: mocks.readPowerShellProfileFeatures,
 }));
 
 vi.mock("../src/wtsettings", () => ({
@@ -211,9 +217,58 @@ beforeEach(() => {
   mocks.restoreSettingsBackup.mockReturnValue(
     "C:/Users/test/settings.json.backup-456-0",
   );
+  mocks.readPowerShellProfileFeatures.mockReturnValue({
+    terminalIcons: false,
+    historyPreview: false,
+    treeListing: false,
+  });
 });
 
 describe("runInstaller", () => {
+  it("preselects PowerShell profile features after restarting", async () => {
+    mocks.readPowerShellProfileFeatures.mockReturnValue({
+      terminalIcons: false,
+      historyPreview: true,
+      treeListing: true,
+    });
+    selectResponses("historyPreview", "done");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    const featureOptions = mocks.select.mock.calls[1]?.[0] as {
+      options: { value: string; label: string }[];
+    };
+    expect(
+      featureOptions.options.find((option) => option.value === "historyPreview")
+        ?.label,
+    ).toContain("●");
+    expect(
+      featureOptions.options.find((option) => option.value === "treeListing")
+        ?.label,
+    ).toContain("●");
+  });
+
+  it("preselects PowerShell file icons from the profile", async () => {
+    mocks.readPowerShellProfileFeatures.mockReturnValue({
+      terminalIcons: true,
+      historyPreview: false,
+      treeListing: false,
+    });
+    selectResponses("terminalIcons", "done");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    const appearanceOptions = mocks.select.mock.calls[1]?.[0] as {
+      options: { value: string; label: string }[];
+    };
+    expect(
+      appearanceOptions.options.find((option) => option.value === "terminalIcons")
+        ?.label,
+    ).toContain("●");
+  });
+
   it("offers settings without automatically selecting background", async () => {
     selectResponses("transparency", "0", "done");
     mocks.confirm.mockResolvedValue(true);

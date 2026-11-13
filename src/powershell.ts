@@ -134,6 +134,55 @@ export function addHistoryPreviewToPowerShellProfile(): void {
   );
 }
 
+export interface PowerShellProfileFeatures {
+  terminalIcons: boolean;
+  historyPreview: boolean;
+  treeListing: boolean;
+}
+
+export function readPowerShellProfileFeatures(): PowerShellProfileFeatures {
+  const features: PowerShellProfileFeatures = {
+    terminalIcons: false,
+    historyPreview: false,
+    treeListing: false,
+  };
+  if (process.platform !== "win32") return features;
+
+  let encodedProfile: string;
+  try {
+    encodedProfile = execFileSync(
+      "powershell.exe",
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        String.raw`$profilePath = $PROFILE.CurrentUserCurrentHost
+if (Test-Path -LiteralPath $profilePath) {
+  $content = [System.IO.File]::ReadAllText($profilePath)
+  [Console]::Out.Write([Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($content)))
+}`,
+      ],
+      { encoding: "utf8", windowsHide: true, stdio: "pipe" },
+    ).trim();
+  } catch (error) {
+    throw new Error("Could not inspect the Windows PowerShell profile.", {
+      cause: error,
+    });
+  }
+
+  const profile = Buffer.from(encodedProfile, "base64").toString("utf16le");
+  const hasBlock = (name: string) =>
+    profile.includes(`# >>> pimpt ${name} >>>`) &&
+    profile.includes(`# <<< pimpt ${name} <<<`);
+
+  features.terminalIcons = hasBlock("terminal icons");
+  features.historyPreview = hasBlock("command history preview");
+  features.treeListing =
+    hasBlock("tree-style ls v2") || hasBlock("tree-style ls");
+  return features;
+}
+
 export function addTreeListingToPowerShellProfile(): void {
   addPowerShellProfileBlock(
     "tree-style ls alias",
@@ -152,7 +201,12 @@ export function addTreeListingToPowerShellProfile(): void {
       "    [switch]$All,",
       "    [switch]$Force",
       "  )",
-      "  $root = Get-Item -LiteralPath $Path -ErrorAction Stop",
+      "  try {",
+      "    $root = Get-Item -LiteralPath $Path -ErrorAction Stop",
+      "  } catch {",
+      "    Write-Host (\"ls: cannot access '{0}': {1}\" -f $Path, $_.Exception.Message) -ForegroundColor Red",
+      "    return",
+      "  }",
       "  if (-not $root.PSIsContainer) {",
       "    Write-Host $root.Name -ForegroundColor Gray",
       "    return",
@@ -162,7 +216,12 @@ export function addTreeListingToPowerShellProfile(): void {
       "  $walk = {",
       "    param($Directory, [string]$Prefix, [int]$CurrentDepth, $State)",
       "    if ($CurrentDepth -ge $Depth) { return }",
-      "    $children = @(Get-ChildItem -LiteralPath $Directory.FullName -Force:$Force -ErrorAction Stop | Sort-Object @{ Expression = { if ($_.PSIsContainer) { 0 } else { 1 } } }, Name)",
+      "    try {",
+      "      $children = @(Get-ChildItem -LiteralPath $Directory.FullName -Force:$Force -ErrorAction Stop | Sort-Object @{ Expression = { if ($_.PSIsContainer) { 0 } else { 1 } } }, Name)",
+      "    } catch {",
+      "      Write-Host (\"{0}└── [cannot read: {1}]\" -f $Prefix, $_.Exception.Message) -ForegroundColor Red",
+      "      return",
+      "    }",
       "    for ($index = 0; $index -lt $children.Count; $index++) {",
       "      if (-not $State.All -and $State.Shown -ge $State.Limit) {",
       "        $State.Truncated = $true",

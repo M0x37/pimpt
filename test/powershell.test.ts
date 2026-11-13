@@ -8,7 +8,10 @@ vi.mock("node:child_process", () => ({
   execFileSync: mocks.execFileSync,
 }));
 
-import { addTreeListingToPowerShellProfile } from "../src/powershell";
+import {
+  addTreeListingToPowerShellProfile,
+  readPowerShellProfileFeatures,
+} from "../src/powershell";
 
 function decodeProfileBlock(script: string): string {
   const encodedBlocks = Array.from(
@@ -48,7 +51,38 @@ describe("addTreeListingToPowerShellProfile", () => {
     expect(treeBlock).toContain("[int]$Limit = 50");
     expect(treeBlock).toContain("[switch]$All");
     expect(treeBlock).toContain("output capped at");
+    expect(treeBlock).toContain("ls: cannot access");
+    expect(treeBlock).toContain("[cannot read:");
     expect(treeBlock).toContain("├── ");
     expect(treeBlock).toContain("└── ");
+  });
+});
+
+describe("readPowerShellProfileFeatures", () => {
+  it("detects enabled features from their managed profile blocks", () => {
+    const profile = [
+      "# >>> pimpt terminal icons >>>",
+      "Import-Module Terminal-Icons",
+      "# <<< pimpt terminal icons <<<",
+      "# >>> pimpt command history preview >>>",
+      "Set-PSReadLineOption -PredictionViewStyle ListView",
+      "# <<< pimpt command history preview <<<",
+      "# >>> pimpt tree-style ls v2 >>>",
+      "function ls {}",
+      "# <<< pimpt tree-style ls v2 <<<",
+    ].join("\r\n");
+    mocks.execFileSync.mockReturnValue(
+      Buffer.from(profile, "utf16le").toString("base64"),
+    );
+    vi.stubGlobal("process", { platform: "win32" });
+    try {
+      expect(readPowerShellProfileFeatures()).toEqual({
+        terminalIcons: true,
+        historyPreview: true,
+        treeListing: true,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

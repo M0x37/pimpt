@@ -48,4 +48,10 @@ async function main(): Promise<void> {
   await runInstaller();
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  console.error(pc.red("pimpt failed:"));
+  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  process.exitCode = 1;
+}
