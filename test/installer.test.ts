@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     cancelSymbol,
+    InvalidSettingsFileError: class InvalidSettingsFileError extends Error {},
     intro: vi.fn(),
     note: vi.fn(),
     outro: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock("node:timers/promises", () => ({
 }));
 
 vi.mock("../src/wtsettings", () => ({
+  InvalidSettingsFileError: mocks.InvalidSettingsFileError,
   findSettingsPath: vi.fn(),
   readSettingsFile: vi.fn(),
   setSetting: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock("../src/wtsettings", () => ({
 
 import { runInstaller } from "../src/installer";
 import {
+  InvalidSettingsFileError,
   findSettingsPath,
   readSettingsFile,
   setSetting,
@@ -238,5 +241,31 @@ describe("runInstaller", () => {
       expect.stringContaining("Could not find Windows Terminal settings.json"),
     );
     expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("reports invalid settings without showing a success message", async () => {
+    const originalExitCode = process.exitCode;
+    mocks.groupMultiselect.mockResolvedValue(["background"]);
+    mocks.select.mockResolvedValue("#2E3440");
+    mocks.confirm.mockResolvedValue(true);
+    setSetting.mockImplementation(() => {
+      throw new InvalidSettingsFileError(
+        "Windows Terminal settings.json is invalid JSONC. No changes were written. Restore the file from a backup before trying again.",
+      );
+    });
+
+    try {
+      await runInstaller();
+
+      expect(spinner.error).toHaveBeenCalledWith(
+        expect.stringContaining("settings.json is invalid JSONC"),
+      );
+      expect(spinner.stop).not.toHaveBeenCalled();
+      expect(mocks.outro).not.toHaveBeenCalled();
+      expect(writeSettingsFile).not.toHaveBeenCalled();
+      expect(process.exitCode).toBe(1);
+    } finally {
+      process.exitCode = originalExitCode;
+    }
   });
 });

@@ -1,6 +1,15 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { modify } from "jsonc-parser";
+import { applyEdits, modify, parse, type ParseError } from "jsonc-parser";
+
+export class InvalidSettingsFileError extends Error {
+  constructor() {
+    super(
+      "Windows Terminal settings.json is invalid JSONC. No changes were written. Restore the file from a backup before trying again.",
+    );
+    this.name = "InvalidSettingsFileError";
+  }
+}
 
 /**
  * Sucht die Windows Terminal settings.json.
@@ -52,11 +61,22 @@ export function setSetting(
   value: unknown,
 ): string {
   const content = readSettingsFile(settingsPath);
-  const result = modify(content, jsonPath, value, {
+  const parseErrors: ParseError[] = [];
+  const parsedContent = parse(content, parseErrors, { allowTrailingComma: true });
+  if (
+    parseErrors.length > 0 ||
+    parsedContent === null ||
+    typeof parsedContent !== "object" ||
+    Array.isArray(parsedContent)
+  ) {
+    throw new InvalidSettingsFileError();
+  }
+
+  const edits = modify(content, jsonPath, value, {
     formattingOptions: {
       tabSize: 4,
       insertSpaces: true,
     },
   });
-  return typeof result === "string" ? result : String(result);
+  return applyEdits(content, edits);
 }

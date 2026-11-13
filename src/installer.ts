@@ -23,6 +23,7 @@ import {
 import { buildSummarySections, normalizeHex } from "./summary.js";
 import {
   findSettingsPath,
+  InvalidSettingsFileError,
   readSettingsFile,
   setSetting,
   writeSettingsFile,
@@ -228,7 +229,15 @@ export async function runInstaller(): Promise<void> {
   s.message("Writing settings.json…");
   await delay(400);
 
-  await applySettings(answers);
+  try {
+    await applySettings(answers);
+  } catch (error) {
+    if (!(error instanceof InvalidSettingsFileError)) throw error;
+
+    s.error(error.message);
+    process.exitCode = 1;
+    return;
+  }
 
   s.stop("Settings written to settings.json.");
 
