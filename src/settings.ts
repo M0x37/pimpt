@@ -40,6 +40,17 @@ export interface SettingDefinition {
   hint: string;
   prompt: Prompt;
   summarize: (value: SettingValue) => string;
+  /**
+   * Pfad in der settings.json, an dem der Wert gespeichert wird.
+   * z. B. ["profiles", "defaults", "background"]
+   * Wenn undefined, wird das Setting nicht geschrieben.
+   */
+  jsonPath?: string[];
+  /**
+   * Wenn true, wird der Wert nur geschrieben, wenn er nicht "keep" ist.
+   * Nutzt für Presets mit "keep"-Option.
+   */
+  skipIfKeep?: boolean;
 }
 
 export const BACKGROUND_CUSTOM = "custom";
@@ -172,6 +183,8 @@ export const settings: SettingDefinition[] = [
       );
       return preset ? `${preset.label} (${preset.value})` : `Custom (${String(value)})`;
     },
+    jsonPath: ["profiles", "defaults", "background"],
+    skipIfKeep: true,
   },
   {
     id: "backgroundImage",

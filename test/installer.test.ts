@@ -9,12 +9,14 @@ const mocks = vi.hoisted(() => {
     note: vi.fn(),
     outro: vi.fn(),
     cancel: vi.fn(),
+    logStep: vi.fn(),
+    logWarn: vi.fn(),
+    logInfo: vi.fn(),
     groupMultiselect: vi.fn(),
     select: vi.fn(),
     text: vi.fn(),
     confirm: vi.fn(),
     spinner: vi.fn(),
-    logStep: vi.fn(),
     isCancel: vi.fn((value: unknown) => value === cancelSymbol),
   };
 });
@@ -31,9 +33,9 @@ vi.mock("@clack/prompts", () => ({
   spinner: mocks.spinner,
   log: {
     step: mocks.logStep,
-    info: vi.fn(),
+    info: mocks.logInfo,
     success: vi.fn(),
-    warn: vi.fn(),
+    warn: mocks.logWarn,
     error: vi.fn(),
     message: vi.fn(),
   },
@@ -44,7 +46,20 @@ vi.mock("node:timers/promises", () => ({
   setTimeout: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock("../src/wtsettings", () => ({
+  findSettingsPath: vi.fn(),
+  readSettingsFile: vi.fn(),
+  setSetting: vi.fn(),
+  writeSettingsFile: vi.fn(),
+}));
+
 import { runInstaller } from "../src/installer";
+import {
+  findSettingsPath,
+  readSettingsFile,
+  setSetting,
+  writeSettingsFile,
+} from "../src/wtsettings";
 
 const spinner = {
   start: vi.fn(),
@@ -68,6 +83,21 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "log").mockImplementation(() => undefined);
   mocks.spinner.mockReturnValue(spinner);
+
+  findSettingsPath.mockReturnValue(
+    "C:/Users/test/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json",
+  );
+  readSettingsFile.mockReturnValue(`{
+    "$schema": "https://aka.ms/terminal-profiles-schema",
+    "profiles": {
+      "defaults": {},
+      "list": []
+    }
+  }`);
+  setSetting.mockImplementation((_path: string, _jsonPath: string[], _value: unknown) => {
+    return `{"modified": true}`;
+  });
+  writeSettingsFile.mockImplementation(() => undefined);
 });
 
 describe("runInstaller", () => {
@@ -114,6 +144,26 @@ describe("runInstaller", () => {
     expect(mocks.outro).toHaveBeenCalledOnce();
   });
 
+  it("writes background color to settings.json", async () => {
+    mocks.groupMultiselect.mockResolvedValue(["background"]);
+    mocks.select.mockResolvedValue("#2E3440");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(findSettingsPath).toHaveBeenCalledOnce();
+    expect(readSettingsFile).toHaveBeenCalledOnce();
+    expect(setSetting).toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "defaults", "background"],
+      "#2E3440",
+    );
+    expect(writeSettingsFile).toHaveBeenCalledOnce();
+    expect(spinner.stop).toHaveBeenCalledWith(
+      "Settings written to settings.json.",
+    );
+  });
+
   it("asks for a custom background color and validates it", async () => {
     mocks.groupMultiselect.mockResolvedValue(["background"]);
     mocks.select.mockResolvedValue("custom");
@@ -133,6 +183,17 @@ describe("runInstaller", () => {
     expect(options.validate(undefined)).toContain("hex color");
   });
 
+  it("skips writing when value is 'keep'", async () => {
+    mocks.groupMultiselect.mockResolvedValue(["background"]);
+    mocks.select.mockResolvedValue("keep");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
   it("stops when the user declines the installation", async () => {
     mocks.groupMultiselect.mockResolvedValue(["background"]);
     mocks.select.mockResolvedValue("70");
@@ -145,6 +206,7 @@ describe("runInstaller", () => {
     );
     expect(mocks.spinner).not.toHaveBeenCalled();
     expect(mocks.outro).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
   });
 
   it("exits when a prompt is cancelled", async () => {
@@ -162,5 +224,19 @@ describe("runInstaller", () => {
     expect(mocks.outro).not.toHaveBeenCalled();
 
     exit.mockRestore();
+  });
+
+  it("warns when settings.json is not found", async () => {
+    vi.mocked(findSettingsPath).mockReturnValue(undefined);
+    mocks.groupMultiselect.mockResolvedValue(["background"]);
+    mocks.select.mockResolvedValue("#2E3440");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(mocks.logWarn).toHaveBeenCalledWith(
+      expect.stringContaining("Could not find Windows Terminal settings.json"),
+    );
+    expect(writeSettingsFile).not.toHaveBeenCalled();
   });
 });

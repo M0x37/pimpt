@@ -21,6 +21,12 @@ import {
   type SettingValue,
 } from "./settings.js";
 import { buildSummarySections, normalizeHex } from "./summary.js";
+import {
+  findSettingsPath,
+  readSettingsFile,
+  setSetting,
+  writeSettingsFile,
+} from "./wtsettings.js";
 
 const BANNER = `
    ██████╗ ██╗███╗   ███╗██████╗ ████████╗
@@ -119,6 +125,43 @@ function renderSummary(answers: Record<string, SettingValue>): void {
   note(lines.join("\n"), "Your configuration");
 }
 
+/**
+ * Schreibt die gesammelten Antworten in die Windows Terminal settings.json.
+ * Nur Settings mit einem `jsonPath` und einem nicht-"keep"-Wert werden
+ * geschrieben. Kommentare und Formatierung der Datei werden erhalten.
+ */
+async function applySettings(
+  answers: Record<string, SettingValue>,
+): Promise<void> {
+  const settingsPath = findSettingsPath();
+
+  if (!settingsPath) {
+    log.warn(
+      pc.dim("Could not find Windows Terminal settings.json. Skipping write."),
+    );
+    return;
+  }
+
+  log.info(pc.dim(`Writing to ${settingsPath}…`));
+
+  let content = readSettingsFile(settingsPath);
+  let dirty = false;
+
+  for (const setting of settings) {
+    const value = answers[setting.id];
+    if (value === undefined) continue;
+    if (!setting.jsonPath) continue;
+    if (setting.skipIfKeep && value === "keep") continue;
+
+    content = setSetting(settingsPath, setting.jsonPath, value);
+    dirty = true;
+  }
+
+  if (dirty) {
+    writeSettingsFile(settingsPath, content);
+  }
+}
+
 export async function runInstaller(): Promise<void> {
   console.log(pc.cyan(BANNER));
   intro(pc.bold("Let's make your terminal yours."));
@@ -126,7 +169,7 @@ export async function runInstaller(): Promise<void> {
   note(
     [
       "This is a preview of the installer.",
-      "Your choices are collected and summarized, but settings.json is not modified yet.",
+      "Your choices are collected and written to settings.json after confirmation.",
     ].join("\n"),
     "Preview mode",
   );
@@ -167,7 +210,7 @@ export async function runInstaller(): Promise<void> {
 
   const proceed = bail(
     await confirm({
-      message: "Install these settings? (preview only)",
+      message: "Install these settings? (writes to settings.json)",
       initialValue: true,
     }),
   );
@@ -182,14 +225,17 @@ export async function runInstaller(): Promise<void> {
   await delay(300);
   s.message("Checking compatibility…");
   await delay(300);
-  s.message("Simulating settings.json update…");
+  s.message("Writing settings.json…");
   await delay(400);
-  s.stop("Preview complete — no files were changed.");
+
+  await applySettings(answers);
+
+  s.stop("Settings written to settings.json.");
 
   outro(
     [
       `${pc.green("✓")} Your configuration is ready.`,
-      pc.dim("Real settings.json integration is not wired up yet."),
+      pc.dim("Background color has been written to settings.json."),
     ].join("\n"),
   );
 }
