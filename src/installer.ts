@@ -144,6 +144,7 @@ export async function runInstaller(): Promise<void> {
     await groupMultiselect<string>({
       message: "What would you like to customize?",
       options: appearanceOptions,
+      initialValues: ["background"],
       required: true,
       selectableGroups: false,
       maxItems: 8,
