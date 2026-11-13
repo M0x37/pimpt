@@ -6,7 +6,8 @@ export type SettingGroup =
   | "Window & tabs"
   | "Profile"
   | "Behavior"
-  | "Tools";
+  | "Tools"
+  | "Other";
 
 export interface Choice {
   value: string;
@@ -160,7 +161,7 @@ export const settings: SettingDefinition[] = [
     id: "transparency",
     group: "Appearance",
     label: "Transparency",
-    hint: "Window opacity and acrylic tab row",
+    hint: "Window opacity",
     prompt: {
       kind: "select",
       message: "How transparent should the window be?",
@@ -178,7 +179,7 @@ export const settings: SettingDefinition[] = [
     id: "background",
     group: "Appearance",
     label: "Background color",
-    hint: "Palette preset or custom hex; also colors the active tab",
+    hint: "Preset or custom color",
     prompt: {
       kind: "select",
       message: "Pick a background color",
@@ -212,7 +213,7 @@ export const settings: SettingDefinition[] = [
     id: "fontFace",
     group: "Appearance",
     label: "Font",
-    hint: "Typeface used in Windows Terminal",
+    hint: "Terminal font",
     prompt: {
       kind: "select",
       message: "Choose a font",
@@ -379,9 +380,9 @@ export const settings: SettingDefinition[] = [
   },
   {
     id: "terminalIcons",
-    group: "Behavior",
+    group: "Appearance",
     label: "PowerShell file icons",
-    hint: "Show file and folder icons in Windows PowerShell",
+    hint: "File icons in PowerShell",
     prompt: {
       kind: "confirm",
       message:
@@ -394,11 +395,23 @@ export const settings: SettingDefinition[] = [
     id: "historyPreview",
     group: "Tools",
     label: "Command history preview",
-    hint: "Browse several recent PowerShell commands in a scrollable list",
+    hint: "Browse recent commands",
     prompt: {
       kind: "confirm",
       message:
         "Enable a scrollable PowerShell history list? This installs PSReadLine if needed and lets the Up and Down arrows browse the visible history suggestions.",
+      initialValue: true,
+    },
+    summarize: onOff,
+  },
+  {
+    id: "hidePowerShellBanner",
+    group: "Appearance",
+    label: "Hide PowerShell startup banner",
+    hint: "Hide the welcome text",
+    prompt: {
+      kind: "confirm",
+      message: "Hide the Windows PowerShell startup banner?",
       initialValue: true,
     },
     summarize: onOff,
@@ -436,6 +449,7 @@ export const groupOrder: SettingGroup[] = [
   "Profile",
   "Behavior",
   "Tools",
+  "Other",
 ];
 
 export function buildGroupedOptions(): Record<string, Choice[]> {

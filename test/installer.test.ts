@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => {
     addTerminalIconsToPowerShellProfile: vi.fn(),
     installPSReadLineModule: vi.fn(),
     addHistoryPreviewToPowerShellProfile: vi.fn(),
+    createSettingsBackup: vi.fn(),
+    listSettingsBackups: vi.fn(() => []),
+    restoreSettingsBackup: vi.fn(),
     spawn: vi.fn(() => ({ on: vi.fn(), unref: vi.fn() })),
     select: vi.fn(),
     text: vi.fn(),
@@ -28,6 +31,34 @@ const mocks = vi.hoisted(() => {
     spinner: vi.fn(),
     isCancel: vi.fn((value: unknown) => value === cancelSymbol),
   };
+});
+
+it("preselects values already present in settings.json", async () => {
+  readSettingsFile.mockReturnValue(`{
+    "profiles": {
+      "defaults": {
+        "opacity": 5,
+        "useAcrylic": true
+      },
+      "list": []
+    }
+  }`);
+  setSetting.mockImplementation((content: string) => content);
+  selectResponses("Appearance", "back", "done");
+  mocks.confirm.mockResolvedValue(true);
+
+  await runInstaller();
+
+  const appearanceOptions = mocks.select.mock.calls[1]?.[0] as {
+    options: { value: string; label: string }[];
+  };
+  expect(
+    appearanceOptions.options.find((option) => option.value === "transparency")
+      ?.label,
+  ).toContain("●");
+  expect(summaryText()).toContain("Acrylic · 5% opacity");
+  expect(mocks.createSettingsBackup).not.toHaveBeenCalled();
+  expect(writeSettingsFile).not.toHaveBeenCalled();
 });
 
 vi.mock("@clack/prompts", () => ({
@@ -75,8 +106,11 @@ vi.mock("../src/powershell", () => ({
 
 vi.mock("../src/wtsettings", () => ({
   InvalidSettingsFileError: mocks.InvalidSettingsFileError,
+  createSettingsBackup: mocks.createSettingsBackup,
   findSettingsPath: vi.fn(),
+  listSettingsBackups: mocks.listSettingsBackups,
   readSettingsFile: vi.fn(),
+  restoreSettingsBackup: mocks.restoreSettingsBackup,
   setSetting: vi.fn(),
   writeSettingsFile: vi.fn(),
 }));
@@ -114,7 +148,30 @@ function summaryText(): string {
 }
 
 function selectResponses(...values: unknown[]): void {
+  let activeArea: string | undefined;
   for (const value of values) {
+    const settingArea =
+      value === "historyPreview"
+        ? "Tools"
+        : value === "transparency" ||
+            value === "background" ||
+            value === "fontFace" ||
+            value === "terminalIcons" ||
+            value === "hidePowerShellBanner"
+          ? "Appearance"
+          : undefined;
+    if (settingArea && activeArea !== settingArea) {
+      if (activeArea) mocks.select.mockResolvedValueOnce("back");
+      mocks.select.mockResolvedValueOnce(settingArea);
+      activeArea = settingArea;
+    } else if (value === "restoreBackup" && activeArea !== "Other") {
+      if (activeArea) mocks.select.mockResolvedValueOnce("back");
+      mocks.select.mockResolvedValueOnce("Other");
+      activeArea = "Other";
+    } else if (value === "done" && activeArea) {
+      mocks.select.mockResolvedValueOnce("back");
+      activeArea = undefined;
+    }
     mocks.select.mockResolvedValueOnce(value);
   }
 }
@@ -143,6 +200,13 @@ beforeEach(() => {
   vi.mocked(installFont).mockResolvedValue(undefined);
   mocks.installNerdFont.mockResolvedValue(undefined);
   writeSettingsFile.mockImplementation(() => undefined);
+  mocks.createSettingsBackup.mockReturnValue(
+    "C:/Users/test/settings.json.backup-123-0",
+  );
+  mocks.listSettingsBackups.mockReturnValue([]);
+  mocks.restoreSettingsBackup.mockReturnValue(
+    "C:/Users/test/settings.json.backup-456-0",
+  );
 });
 
 describe("runInstaller", () => {
@@ -152,42 +216,48 @@ describe("runInstaller", () => {
 
     await runInstaller();
 
-    const options = mocks.select.mock.calls[0]?.[0] as {
+    const areas = mocks.select.mock.calls[0]?.[0] as {
+      options: { value: string; label: string; hint: string }[];
+      initialValue: string;
+    };
+    expect(areas.options.map((option) => option.value)).toEqual([
+      "Appearance",
+      "Tools",
+      "Other",
+    ]);
+    expect(areas.initialValue).toBe("Appearance");
+
+    const options = mocks.select.mock.calls[1]?.[0] as {
       options: { value: string; label: string; hint: string }[];
       initialValue: string;
     };
 
     expect(options.options).toEqual([
-      { value: "transparency", label: "Transparency", hint: "Window opacity and acrylic tab row" },
+      { value: "transparency", label: "Transparency", hint: "Window opacity" },
       {
         value: "background",
         label: "Background color",
-        hint: "Palette preset or custom hex; also colors the active tab",
+        hint: "Preset or custom color",
       },
       {
         value: "fontFace",
         label: "Font",
-        hint: "Typeface used in Windows Terminal",
+        hint: "Terminal font",
       },
       {
         value: "terminalIcons",
         label: "PowerShell file icons",
-        hint: "Show file and folder icons in Windows PowerShell",
+        hint: "File icons in PowerShell",
       },
       {
-        value: "historyPreview",
-        label: "Command history preview",
-        hint: "Browse several recent PowerShell commands in a scrollable list",
+        value: "hidePowerShellBanner",
+        label: "Hide PowerShell startup banner",
+        hint: "Hide the welcome text",
       },
+      { value: "back", label: "Back", hint: "Choose another area" },
     ]);
+    expect(options.options.every((option) => option.hint.length <= 30)).toBe(true);
     expect(options.initialValue).toBe("transparency");
-    const returnedOptions = mocks.select.mock.calls[2]?.[0] as {
-      options: { value: string; label: string }[];
-    };
-    expect(
-      returnedOptions.options.find((option) => option.value === "transparency")
-        ?.label,
-    ).toContain("●");
     expect(setSetting).not.toHaveBeenCalledWith(
       expect.any(String),
       ["profiles", "defaults", "background"],
@@ -201,8 +271,20 @@ describe("runInstaller", () => {
 
     await runInstaller();
 
-    expect(mocks.select).toHaveBeenCalledTimes(3);
+    expect(mocks.select).toHaveBeenCalledTimes(5);
     expect(mocks.confirm).toHaveBeenCalledOnce();
+
+    const returnedAppearanceMenu = mocks.select.mock.calls[3]?.[0] as {
+      message: string;
+      options: { value: string }[];
+    };
+    expect(returnedAppearanceMenu.message).toBe("Appearance");
+    expect(returnedAppearanceMenu.options.map((option) => option.value)).toContain(
+      "transparency",
+    );
+    expect(mocks.select.mock.calls[4]?.[0]).toMatchObject({
+      message: "Choose an area",
+    });
 
     expect(summaryText()).toContain("Appearance");
     expect(summaryText()).toContain("Nord (#2E3440)");
@@ -219,7 +301,7 @@ describe("runInstaller", () => {
     await runInstaller();
 
     expect(findSettingsPath).toHaveBeenCalledOnce();
-    expect(readSettingsFile).toHaveBeenCalledOnce();
+    expect(readSettingsFile).toHaveBeenCalledTimes(2);
     expect(setSetting).toHaveBeenCalledWith(
       expect.any(String),
       ["profiles", "defaults", "background"],
@@ -232,6 +314,8 @@ describe("runInstaller", () => {
       "#2E3440",
     );
     expect(writeSettingsFile).toHaveBeenCalledOnce();
+    expect(mocks.createSettingsBackup).toHaveBeenCalledOnce();
+    expect(mocks.createSettingsBackup).toHaveBeenCalledBefore(writeSettingsFile);
     expect(spinner.stop).toHaveBeenCalledWith(
       "Settings written to settings.json.",
     );
@@ -243,7 +327,7 @@ describe("runInstaller", () => {
 
     await runInstaller();
 
-    const options = mocks.select.mock.calls[1]?.[0] as {
+    const options = mocks.select.mock.calls[2]?.[0] as {
       options: { value: string; label: string; hint: string }[];
     };
     expect(options.options.map((option) => option.value)).toEqual([
@@ -348,6 +432,8 @@ describe("runInstaller", () => {
     expect(summaryText()).toContain("Hack Nerd Font Mono");
     expect(mocks.installNerdFont).toHaveBeenCalledOnce();
     expect(mocks.installTerminalIconsModule).toHaveBeenCalledOnce();
+    expect(summaryText()).toContain("Appearance");
+    expect(summaryText()).not.toContain("Behavior");
     expect(setSetting).toHaveBeenNthCalledWith(
       1,
       expect.any(String),
@@ -402,6 +488,13 @@ describe("runInstaller", () => {
 
     await runInstaller();
 
+    const toolOptions = mocks.select.mock.calls[1]?.[0] as {
+      options: { value: string }[];
+    };
+    expect(toolOptions.options.map((option) => option.value)).toEqual([
+      "historyPreview",
+      "back",
+    ]);
     expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
       message: expect.stringContaining("Up and Down arrows"),
     });
@@ -413,6 +506,54 @@ describe("runInstaller", () => {
     expect(writeSettingsFile).not.toHaveBeenCalled();
   });
 
+  it("adds -NoLogo to the Windows PowerShell profile", async () => {
+    readSettingsFile.mockReturnValue(`{
+      "profiles": {
+        "list": [
+          { "name": "Windows PowerShell", "commandline": "powershell.exe" },
+          { "name": "Command Prompt", "commandline": "cmd.exe" }
+        ]
+      }
+    }`);
+    selectResponses("hidePowerShellBanner", "done");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(setSetting).toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "list", 0, "commandline"],
+      "powershell.exe -NoLogo",
+    );
+    expect(setSetting).not.toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "list", 1, "commandline"],
+      expect.anything(),
+    );
+    expect(mocks.createSettingsBackup).toHaveBeenCalledOnce();
+    expect(writeSettingsFile).toHaveBeenCalledOnce();
+    expect(summaryText()).toContain("Appearance");
+    expect(summaryText()).not.toContain("Tools");
+  });
+
+  it("does not add a duplicate -NoLogo argument", async () => {
+    readSettingsFile.mockReturnValue(`{
+      "profiles": {
+        "list": [
+          { "name": "Windows PowerShell", "commandline": "powershell.exe -NoLogo" }
+        ]
+      }
+    }`);
+    selectResponses("hidePowerShellBanner", "done");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(mocks.createSettingsBackup).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
   it("does not install the history preview when the user declines", async () => {
     selectResponses("historyPreview", "done");
     mocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
@@ -421,6 +562,33 @@ describe("runInstaller", () => {
 
     expect(mocks.installPSReadLineModule).not.toHaveBeenCalled();
     expect(mocks.addHistoryPreviewToPowerShellProfile).not.toHaveBeenCalled();
+  });
+
+  it("restores a selected backup after confirming and keeps a safety backup", async () => {
+    const backupPath = "C:/Users/test/settings.json.backup-123-0";
+    mocks.listSettingsBackups.mockReturnValue([
+      { path: backupPath, createdAt: new Date("2026-01-02T03:04:05Z") },
+    ]);
+    selectResponses("restoreBackup", backupPath);
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    const otherOptions = mocks.select.mock.calls[1]?.[0] as {
+      options: { value: string }[];
+    };
+    expect(otherOptions.options.map((option) => option.value)).toEqual([
+      "restoreBackup",
+      "back",
+    ]);
+    expect(mocks.restoreSettingsBackup).toHaveBeenCalledWith(
+      expect.any(String),
+      backupPath,
+    );
+    expect(mocks.outro).toHaveBeenCalledWith(
+      expect.stringContaining("settings.json was restored"),
+    );
+    expect(writeSettingsFile).not.toHaveBeenCalled();
   });
 
   it("does not install icons when Windows Terminal settings are invalid", async () => {
@@ -495,7 +663,7 @@ describe("runInstaller", () => {
 
     await runInstaller();
 
-    const options = mocks.select.mock.calls[1]?.[0] as {
+    const options = mocks.select.mock.calls[2]?.[0] as {
       options: { value: string; label: string; hint: string }[];
     };
     expect(options.options).toContainEqual({

@@ -11,7 +11,7 @@ import {
   text,
 } from "@clack/prompts";
 import { spawn } from "node:child_process";
-import { parse } from "jsonc-parser";
+import { parse, type ParseError } from "jsonc-parser";
 import pc from "picocolors";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -35,9 +35,12 @@ import {
 } from "./powershell.js";
 import { buildSummarySections, normalizeHex } from "./summary.js";
 import {
+  createSettingsBackup,
   findSettingsPath,
   InvalidSettingsFileError,
+  listSettingsBackups,
   readSettingsFile,
+  restoreSettingsBackup,
   setSetting,
   writeSettingsFile,
 } from "./wtsettings.js";
@@ -229,20 +232,167 @@ function getDefaultProfileIndex(content: string): number | undefined {
   return index < 0 ? undefined : index;
 }
 
+function getWindowsPowerShellProfiles(
+  content: string,
+): { index: number; commandline?: string }[] {
+  const parseErrors: ParseError[] = [];
+  const parsed: unknown = parse(content, parseErrors, {
+    allowTrailingComma: true,
+  });
+  if (
+    parseErrors.length > 0 ||
+    parsed === null ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed)
+  ) {
+    throw new InvalidSettingsFileError();
+  }
+
+  const profiles = "profiles" in parsed ? parsed.profiles : undefined;
+  if (
+    profiles === null ||
+    typeof profiles !== "object" ||
+    Array.isArray(profiles) ||
+    !("list" in profiles) ||
+    !Array.isArray(profiles.list)
+  ) {
+    return [];
+  }
+
+  return profiles.list.flatMap((profile: unknown, index: number) => {
+    if (
+      profile === null ||
+      typeof profile !== "object" ||
+      Array.isArray(profile)
+    ) {
+      return [];
+    }
+
+    const name =
+      "name" in profile && typeof profile.name === "string"
+        ? profile.name
+        : "";
+    const commandline =
+      "commandline" in profile && typeof profile.commandline === "string"
+        ? profile.commandline
+        : undefined;
+    return name.toLowerCase() === "windows powershell" ||
+      /(?:^|[\\/"])powershell\.exe(?:["\s]|$)/i.test(commandline ?? "")
+      ? [
+          {
+            index,
+            ...(commandline !== undefined ? { commandline } : {}),
+          },
+        ]
+      : [];
+  });
+}
+
+function readConfiguredAnswers(
+  settingsPath: string | undefined,
+): Record<string, SettingValue> {
+  if (!settingsPath) return {};
+
+  const content = readSettingsFile(settingsPath);
+  const parseErrors: ParseError[] = [];
+  const parsed: unknown = parse(content, parseErrors, {
+    allowTrailingComma: true,
+  });
+  if (
+    parseErrors.length > 0 ||
+    parsed === null ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed)
+  ) {
+    log.warn(
+      pc.yellow(
+        "Could not read existing settings.json values because the file contains invalid JSONC.",
+      ),
+    );
+    return {};
+  }
+
+  const answers: Record<string, SettingValue> = {};
+  const profiles =
+    "profiles" in parsed && parsed.profiles !== null
+      ? parsed.profiles
+      : undefined;
+  const defaults =
+    profiles !== null &&
+    typeof profiles === "object" &&
+    !Array.isArray(profiles) &&
+    "defaults" in profiles
+      ? profiles.defaults
+      : undefined;
+
+  if (defaults !== null && typeof defaults === "object" && !Array.isArray(defaults)) {
+    if (
+      "opacity" in defaults &&
+      typeof defaults.opacity === "number" &&
+      Number.isInteger(defaults.opacity) &&
+      defaults.opacity >= 0 &&
+      defaults.opacity <= 100
+    ) {
+      answers.transparency =
+        defaults.opacity === 100 &&
+        "useAcrylic" in defaults &&
+        defaults.useAcrylic === false
+          ? "off"
+          : String(defaults.opacity);
+    }
+
+    if ("background" in defaults && typeof defaults.background === "string") {
+      answers.background = defaults.background;
+    }
+
+    const font =
+      "font" in defaults && defaults.font !== null
+        ? defaults.font
+        : undefined;
+    if (
+      font !== null &&
+      typeof font === "object" &&
+      !Array.isArray(font) &&
+      "face" in font &&
+      typeof font.face === "string"
+    ) {
+      answers.fontFace = font.face;
+    }
+  }
+
+  const powerShellProfiles = getWindowsPowerShellProfiles(content);
+  if (
+    powerShellProfiles.length > 0 &&
+    powerShellProfiles.every((profile) =>
+      /(?:^|\s)-NoLogo(?:\s|$)/i.test(profile.commandline ?? ""),
+    )
+  ) {
+    answers.hidePowerShellBanner = true;
+  }
+
+  return answers;
+}
+
 /**
  * Schreibt die Antworten in verfügbare Terminal-Einstellungen. Kommentare und
  * Formatierung der JSONC-Dateien werden erhalten.
  */
 async function applySettings(
   answers: Record<string, SettingValue>,
+  settingsPath: string | undefined = findSettingsPath(),
 ): Promise<void> {
   const terminalIconsEnabled = answers.terminalIcons === true;
-  const settingsPath = findSettingsPath();
+  const hidePowerShellBanner = answers.hidePowerShellBanner === true;
 
   if (!settingsPath) {
     if (terminalIconsEnabled) {
       throw new Error(
         "Cannot enable PowerShell file icons because Windows Terminal settings.json could not be found.",
+      );
+    }
+    if (hidePowerShellBanner) {
+      throw new Error(
+        "Cannot hide the PowerShell startup banner because Windows Terminal settings.json could not be found.",
       );
     }
     log.warn(
@@ -253,8 +403,8 @@ async function applySettings(
 
   log.info(pc.dim(`Writing to ${settingsPath}…`));
 
-  let content = readSettingsFile(settingsPath);
-  let dirty = false;
+  const originalContent = readSettingsFile(settingsPath);
+  let content = originalContent;
   for (const setting of settings) {
     const value = answers[setting.id];
     if (value === undefined) continue;
@@ -299,7 +449,29 @@ async function applySettings(
     } else {
       content = setSetting(content, setting.jsonPath, value);
     }
-    dirty = true;
+  }
+
+  if (hidePowerShellBanner) {
+    const powerShellProfiles = getWindowsPowerShellProfiles(content);
+    if (powerShellProfiles.length === 0) {
+      throw new Error(
+        "Cannot hide the PowerShell startup banner because no Windows PowerShell profile was found.",
+      );
+    }
+
+    for (const profile of powerShellProfiles) {
+      const commandline =
+        profile.commandline?.trim()
+          ? profile.commandline
+          : "powershell.exe";
+      if (/(?:^|\s)-NoLogo(?:\s|$)/i.test(commandline)) continue;
+
+      content = setSetting(
+        content,
+        ["profiles", "list", profile.index, "commandline"],
+        `${commandline} -NoLogo`,
+      );
+    }
   }
 
   if (terminalIconsEnabled) {
@@ -316,7 +488,6 @@ async function applySettings(
         NERD_FONT_FAMILY,
       );
     }
-    dirty = true;
   }
 
   if (terminalIconsEnabled) {
@@ -324,7 +495,10 @@ async function applySettings(
     installTerminalIconsModule();
   }
 
+  const dirty = content !== originalContent;
   if (dirty) {
+    const backupPath = createSettingsBackup(settingsPath);
+    log.info(pc.dim(`Backup created at ${backupPath}`));
     writeSettingsFile(settingsPath, content);
   }
 
@@ -337,71 +511,167 @@ export async function runInstaller(): Promise<void> {
   console.log(pc.cyan(BANNER));
   intro(pc.bold("Let's make your terminal yours."));
 
-  note(
-    [
-      "This is a preview of the installer.",
-      "Your choices are collected and written to settings.json after confirmation.",
-    ].join("\n"),
-    "Preview mode",
-  );
-
   const selectableSettings = settings.filter(
     (setting) =>
-      (setting.group === "Appearance" && setting.jsonPath !== undefined) ||
-      setting.id === "terminalIcons" ||
-      setting.id === "historyPreview",
+      (setting.group === "Appearance" &&
+        (setting.jsonPath !== undefined ||
+          setting.id === "terminalIcons" ||
+          setting.id === "hidePowerShellBanner")) ||
+      (setting.group === "Tools" && setting.id === "historyPreview"),
   );
-  const answers: Record<string, SettingValue> = {};
+  const settingsPath = findSettingsPath();
+  const backups = settingsPath ? listSettingsBackups(settingsPath) : [];
+  const answers = readConfiguredAnswers(settingsPath);
   let initialPickerValue = selectableSettings[0]?.id;
+  let initialArea = "Appearance";
 
   while (true) {
-    const visibleSettings = selectableSettings.filter(
-      (setting) =>
-        !(answers.terminalIcons === true && setting.id === "fontFace"),
-    );
-    const options = visibleSettings.map((setting) => ({
-      value: setting.id,
-      label:
-        answers[setting.id] === undefined
-          ? setting.label
-          : `${pc.blue("●")} ${setting.label}`,
-      hint: setting.hint,
-    }));
+    const areaOptions = [
+      { value: "Appearance", label: "Appearance", hint: "Colors and profile settings" },
+      { value: "Tools", label: "Tools", hint: "Command-line tools" },
+      { value: "Other", label: "Other", hint: "Backups and recovery" },
+    ];
     if (Object.keys(answers).length > 0) {
-      options.push({
+      areaOptions.push({
         value: "done",
         label: "Done",
         hint: "Review and apply your settings",
       });
     }
 
-    const firstOption = options[0];
-    if (!firstOption) {
-      throw new Error("No settings are available.");
-    }
-
-    const selectedId = bail(
+    const selectedArea = bail(
       await select<string>({
-        message: "What would you like to customize?",
-        options,
-        initialValue: initialPickerValue ?? firstOption.value,
+        message: "Choose an area",
+        options: areaOptions,
+        initialValue: initialArea,
       }),
     );
-    if (selectedId === "done") break;
+    if (selectedArea === "done") break;
 
-    const setting = selectableSettings.find(
-      (candidate) => candidate.id === selectedId,
-    );
-    if (!setting) {
-      throw new Error(`Unknown appearance setting selected: ${selectedId}`);
+    initialArea = selectedArea;
+    if (selectedArea === "Other") {
+      if (backups.length === 0) {
+        note(
+          "No backups yet. pimpt creates one before changing settings.json.",
+          "Other",
+        );
+        continue;
+      }
+
+      const selectedAction = bail(
+        await select<string>({
+          message: "Other",
+          options: [
+            {
+              value: "restoreBackup",
+              label: "Restore settings backup",
+              hint: "Choose a saved version",
+            },
+            { value: "back", label: "Back", hint: "Choose another area" },
+          ],
+          initialValue: "restoreBackup",
+        }),
+      );
+      if (selectedAction === "back") continue;
+      if (!settingsPath) {
+        throw new Error("Windows Terminal settings.json could not be found.");
+      }
+
+      const selectedBackup = bail(
+        await select<string>({
+          message: "Which backup should be restored?",
+          options: backups.map((backup) => ({
+            value: backup.path,
+            label: backup.createdAt.toLocaleString(),
+            hint: backup.path,
+          })),
+          ...(backups[0] ? { initialValue: backups[0].path } : {}),
+        }),
+      );
+      const shouldRestore = bail(
+        await confirm({
+          message:
+            "This replaces settings.json. The current file will be backed up first. Continue?",
+          initialValue: false,
+        }),
+      );
+      if (!shouldRestore) continue;
+
+      const restoreSpinner = spinner();
+      restoreSpinner.start("Restoring settings.json backup…");
+      try {
+        const safetyBackupPath = restoreSettingsBackup(
+          settingsPath,
+          selectedBackup,
+        );
+        restoreSpinner.stop("Settings restored successfully.");
+        log.info(
+          pc.dim(`The previous settings were backed up to ${safetyBackupPath}`),
+        );
+        outro(pc.green("✓ Windows Terminal settings.json was restored."));
+      } catch (error) {
+        restoreSpinner.error("Could not restore the settings backup.");
+        throw error;
+      }
+      return;
     }
 
-    initialPickerValue = selectedId;
-    log.step(pc.bold(pc.cyan(setting.group)));
-    answers[setting.id] = await askSetting(setting);
-    if (setting.id === "terminalIcons" && answers.terminalIcons === true) {
-      answers.fontFace = NERD_FONT_FAMILY;
-      initialPickerValue = "terminalIcons";
+    while (true) {
+      const visibleSettings = selectableSettings.filter(
+        (setting) =>
+          setting.group === selectedArea &&
+          !(answers.terminalIcons === true && setting.id === "fontFace"),
+      );
+      const options = visibleSettings.map((setting) => ({
+        value: setting.id,
+        label:
+          answers[setting.id] === undefined
+            ? setting.label
+            : `${pc.green("●")} ${setting.label}`,
+        hint: setting.hint,
+      }));
+      options.push({
+        value: "back",
+        label: "Back",
+        hint: "Choose another area",
+      });
+
+      const firstOption = options[0];
+      if (!firstOption) {
+        throw new Error(`No settings are available in ${selectedArea}.`);
+      }
+
+      const selectedInitialValue =
+        initialPickerValue &&
+        options.some((option) => option.value === initialPickerValue)
+          ? initialPickerValue
+          : firstOption.value;
+      const selectedId = bail(
+        await select<string>({
+          message: selectedArea,
+          options,
+          initialValue: selectedInitialValue,
+        }),
+      );
+      if (selectedId === "back") break;
+
+      const setting = selectableSettings.find(
+        (candidate) =>
+          candidate.id === selectedId && candidate.group === selectedArea,
+      );
+      if (!setting) {
+        throw new Error(
+          `Unknown setting selected in ${selectedArea}: ${selectedId}`,
+        );
+      }
+
+      initialPickerValue = selectedId;
+      log.step(pc.bold(pc.cyan(setting.group)));
+      answers[setting.id] = await askSetting(setting);
+      if (setting.id === "terminalIcons" && answers.terminalIcons === true) {
+        answers.fontFace = NERD_FONT_FAMILY;
+        initialPickerValue = "terminalIcons";
+      }
     }
   }
 
@@ -425,14 +695,16 @@ export async function runInstaller(): Promise<void> {
   s.message("Checking compatibility…");
   await delay(300);
   s.message(
-    answers.terminalIcons === true || answers.historyPreview === true
-      ? "Installing PowerShell features…"
+    answers.terminalIcons === true ||
+    answers.historyPreview === true ||
+    answers.hidePowerShellBanner === true
+      ? "Applying PowerShell options…"
       : "Writing settings.json…",
   );
   await delay(400);
 
   try {
-    await applySettings(answers);
+    await applySettings(answers, settingsPath);
     if (answers.historyPreview === true) {
       installPSReadLineModule();
       addHistoryPreviewToPowerShellProfile();
@@ -450,7 +722,9 @@ export async function runInstaller(): Promise<void> {
   const fontSelected =
     answers.fontFace !== undefined && answers.fontFace !== "keep";
   const powerShellFeatureSelected =
-    answers.terminalIcons === true || answers.historyPreview === true;
+    answers.terminalIcons === true ||
+    answers.historyPreview === true ||
+    answers.hidePowerShellBanner === true;
   if (fontSelected || powerShellFeatureSelected) openNewTerminalTab();
   outro(
     [

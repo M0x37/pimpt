@@ -1,6 +1,18 @@
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import {
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { applyEdits, modify, parse, type ParseError } from "jsonc-parser";
+
+export interface SettingsBackup {
+  path: string;
+  createdAt: Date;
+}
 
 export class InvalidSettingsFileError extends Error {
   constructor() {
@@ -45,6 +57,66 @@ export function readSettingsFile(settingsPath: string): string {
  */
 export function writeSettingsFile(settingsPath: string, content: string): void {
   writeFileSync(settingsPath, content, "utf8");
+}
+
+export function createSettingsBackup(settingsPath: string): string {
+  const timestamp = Date.now();
+  const backupPrefix = `${basename(settingsPath)}.backup-${timestamp}-`;
+  let sequence = 0;
+  let backupPath: string;
+
+  do {
+    backupPath = join(dirname(settingsPath), `${backupPrefix}${sequence}`);
+    sequence += 1;
+  } while (existsSync(backupPath));
+
+  copyFileSync(settingsPath, backupPath);
+  return backupPath;
+}
+
+export function listSettingsBackups(settingsPath: string): SettingsBackup[] {
+  const backupPrefix = `${basename(settingsPath)}.backup-`;
+
+  return readdirSync(dirname(settingsPath))
+    .filter((name) => name.startsWith(backupPrefix))
+    .flatMap((name): SettingsBackup[] => {
+      const match = /^(\d+)-(\d+)$/.exec(name.slice(backupPrefix.length));
+      if (!match) return [];
+
+      const path = join(dirname(settingsPath), name);
+      if (!lstatSync(path).isFile()) return [];
+
+      return [{ path, createdAt: new Date(Number(match[1])) }];
+    })
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+}
+
+export function restoreSettingsBackup(
+  settingsPath: string,
+  backupPath: string,
+): string {
+  const backup = listSettingsBackups(settingsPath).find(
+    (candidate) => candidate.path === backupPath,
+  );
+  if (!backup) {
+    throw new Error("The selected settings backup is not available.");
+  }
+
+  const content = readFileSync(backup.path, "utf8");
+  const parseErrors: ParseError[] = [];
+  const parsedContent = parse(content, parseErrors, { allowTrailingComma: true });
+  if (
+    parseErrors.length > 0 ||
+    parsedContent === null ||
+    typeof parsedContent !== "object" ||
+    Array.isArray(parsedContent)
+  ) {
+    throw new Error("The selected backup is invalid JSONC. Nothing was changed.");
+  }
+
+  const safetyBackupPath = createSettingsBackup(settingsPath);
+  writeSettingsFile(settingsPath, content);
+  return safetyBackupPath;
 }
 
 /**
