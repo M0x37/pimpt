@@ -13,6 +13,10 @@ const mocks = vi.hoisted(() => {
     logStep: vi.fn(),
     logWarn: vi.fn(),
     logInfo: vi.fn(),
+    isFontInstalled: vi.fn(),
+    canInstallFont: vi.fn(),
+    installFont: vi.fn(),
+    spawn: vi.fn(() => ({ on: vi.fn(), unref: vi.fn() })),
     select: vi.fn(),
     text: vi.fn(),
     confirm: vi.fn(),
@@ -45,6 +49,16 @@ vi.mock("node:timers/promises", () => ({
   setTimeout: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock("node:child_process", () => ({
+  spawn: mocks.spawn,
+}));
+
+vi.mock("../src/fonts", () => ({
+  isFontInstalled: mocks.isFontInstalled,
+  canInstallFont: mocks.canInstallFont,
+  installFont: mocks.installFont,
+}));
+
 vi.mock("../src/wtsettings", () => ({
   InvalidSettingsFileError: mocks.InvalidSettingsFileError,
   findSettingsPath: vi.fn(),
@@ -54,6 +68,11 @@ vi.mock("../src/wtsettings", () => ({
 }));
 
 import { runInstaller } from "../src/installer";
+import {
+  canInstallFont,
+  installFont,
+  isFontInstalled,
+} from "../src/fonts";
 import {
   InvalidSettingsFileError,
   findSettingsPath,
@@ -88,6 +107,7 @@ function selectResponses(...values: unknown[]): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("WT_SESSION", "");
   vi.spyOn(console, "log").mockImplementation(() => undefined);
   mocks.spinner.mockReturnValue(spinner);
 
@@ -101,9 +121,12 @@ beforeEach(() => {
       "list": []
     }
   }`);
-  setSetting.mockImplementation((_path: string, _jsonPath: string[], _value: unknown) => {
+  setSetting.mockImplementation((_path: string, _jsonPath: (string | number)[], _value: unknown) => {
     return `{"modified": true}`;
   });
+  vi.mocked(isFontInstalled).mockReturnValue(true);
+  vi.mocked(canInstallFont).mockReturnValue(true);
+  vi.mocked(installFont).mockResolvedValue(undefined);
   writeSettingsFile.mockImplementation(() => undefined);
 });
 
@@ -125,6 +148,11 @@ describe("runInstaller", () => {
         value: "background",
         label: "Background color",
         hint: "Palette preset or custom hex; also colors the active tab",
+      },
+      {
+        value: "fontFace",
+        label: "Font",
+        hint: "Typeface used in Windows Terminal",
       },
     ]);
     expect(options.initialValue).toBe("transparency");
@@ -181,6 +209,139 @@ describe("runInstaller", () => {
     expect(writeSettingsFile).toHaveBeenCalledOnce();
     expect(spinner.stop).toHaveBeenCalledWith(
       "Settings written to settings.json.",
+    );
+  });
+
+  it("offers font choices and writes the selected font", async () => {
+    selectResponses("fontFace", "Cascadia Code", "done");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    const options = mocks.select.mock.calls[1]?.[0] as {
+      options: { value: string; label: string; hint: string }[];
+    };
+    expect(options.options.map((option) => option.value)).toEqual([
+      "keep",
+      "Cascadia Mono",
+      "Cascadia Code",
+      "Consolas",
+      "JetBrains Mono",
+      "Fira Code",
+      "Hack",
+      "Source Code Pro",
+      "IBM Plex Mono",
+    ]);
+    expect(options.options).toContainEqual({
+      value: "Cascadia Code",
+      label: "Cascadia Code",
+      hint: "Ligatures included",
+    });
+    expect(summaryText()).toContain("Cascadia Code");
+    expect(setSetting).toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "defaults", "font", "face"],
+      "Cascadia Code",
+    );
+    expect(writeSettingsFile).toHaveBeenCalledOnce();
+  });
+
+  it("opens a new Windows Terminal tab after applying a font", async () => {
+    selectResponses("fontFace", "Cascadia Code", "done");
+    mocks.confirm.mockResolvedValue(true);
+    vi.stubEnv("WT_SESSION", "test-session");
+
+    await runInstaller();
+
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      "wt.exe",
+      ["-w", "0", "new-tab"],
+      expect.objectContaining({ detached: true, stdio: "ignore" }),
+    );
+  });
+
+  it("writes the selected font to the default profile as well as defaults", async () => {
+    readSettingsFile.mockReturnValue(`{
+      "defaultProfile": "powershell",
+      "profiles": {
+        "defaults": {},
+        "list": [
+          { "guid": "powershell", "name": "Windows PowerShell" },
+          { "guid": "cmd", "name": "Command Prompt" }
+        ]
+      }
+    }`);
+    selectResponses("fontFace", "Hack", "done");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(setSetting).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      ["profiles", "defaults", "font", "face"],
+      "Hack",
+    );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      ["profiles", "list", 0, "font", "face"],
+      "Hack",
+    );
+  });
+
+  it("leaves the font unchanged when 'Keep current' is selected", async () => {
+    selectResponses("fontFace", "keep", "done");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("asks before installing a missing font", async () => {
+    selectResponses("fontFace", "Source Code Pro", "done");
+    mocks.isFontInstalled.mockReturnValue(false);
+    mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining(
+        "Source Code Pro is not installed. Install it now?",
+      ),
+    });
+    expect(installFont).toHaveBeenCalledWith("Source Code Pro");
+    expect(spinner.stop).toHaveBeenCalledWith(
+      "Source Code Pro installed. Restart Windows Terminal to use it.",
+    );
+    expect(setSetting).toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "defaults", "font", "face"],
+      "Source Code Pro",
+    );
+  });
+
+  it("returns to the font list when installation is declined", async () => {
+    selectResponses(
+      "fontFace",
+      "Source Code Pro",
+      "JetBrains Mono",
+      "done",
+    );
+    mocks.isFontInstalled.mockImplementation(
+      (fontFamily: string) => fontFamily === "JetBrains Mono",
+    );
+    mocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(installFont).not.toHaveBeenCalled();
+    expect(setSetting).toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "defaults", "font", "face"],
+      "JetBrains Mono",
     );
   });
 

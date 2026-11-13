@@ -57,7 +57,7 @@ export function writeSettingsFile(settingsPath: string, content: string): void {
  */
 export function setSetting(
   content: string,
-  jsonPath: string[],
+  jsonPath: (string | number)[],
   value: unknown,
 ): string {
   const parseErrors: ParseError[] = [];
