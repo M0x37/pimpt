@@ -53,7 +53,12 @@ if (-not $module) {
 }
 
 function addPowerShellProfileBlock(
-  feature: "terminal icons" | "command history preview",
+  feature:
+    | "terminal icons"
+    | "command history preview"
+    | "tree-style ls"
+    | "tree-style ls alias"
+    | "tree-style ls v2",
   commands: string[],
   operation: string,
 ): void {
@@ -126,5 +131,62 @@ export function addHistoryPreviewToPowerShellProfile(): void {
       "Set-PSReadLineOption -PredictionSource History -PredictionViewStyle ListView",
     ],
     "Adding command history preview to the Windows PowerShell profile",
+  );
+}
+
+export function addTreeListingToPowerShellProfile(): void {
+  addPowerShellProfileBlock(
+    "tree-style ls alias",
+    ["Remove-Item Alias:ls -Force -ErrorAction SilentlyContinue"],
+    "Enabling the tree-style ls command in the Windows PowerShell profile",
+  );
+  addPowerShellProfileBlock(
+    "tree-style ls v2",
+    [
+      "function ls {",
+      "  [CmdletBinding()]",
+      "  param(",
+      "    [Parameter(Position = 0)] [string]$Path = '.',",
+      "    [ValidateRange(1, 32)] [int]$Depth = 4,",
+      "    [ValidateRange(1, 10000)] [int]$Limit = 50,",
+      "    [switch]$All,",
+      "    [switch]$Force",
+      "  )",
+      "  $root = Get-Item -LiteralPath $Path -ErrorAction Stop",
+      "  if (-not $root.PSIsContainer) {",
+      "    Write-Host $root.Name -ForegroundColor Gray",
+      "    return",
+      "  }",
+      "  Write-Host $root.FullName -ForegroundColor Cyan",
+      "  $state = [pscustomobject]@{ Shown = 0; Limit = $Limit; All = [bool]$All; Truncated = $false }",
+      "  $walk = {",
+      "    param($Directory, [string]$Prefix, [int]$CurrentDepth, $State)",
+      "    if ($CurrentDepth -ge $Depth) { return }",
+      "    $children = @(Get-ChildItem -LiteralPath $Directory.FullName -Force:$Force -ErrorAction Stop | Sort-Object @{ Expression = { if ($_.PSIsContainer) { 0 } else { 1 } } }, Name)",
+      "    for ($index = 0; $index -lt $children.Count; $index++) {",
+      "      if (-not $State.All -and $State.Shown -ge $State.Limit) {",
+      "        $State.Truncated = $true",
+      "        break",
+      "      }",
+      "      $entry = $children[$index]",
+      "      $isLast = $index -eq ($children.Count - 1)",
+      "      $connector = if ($isLast) { '└── ' } else { '├── ' }",
+      "      $color = if ($entry.PSIsContainer) { 'Cyan' } else { 'Gray' }",
+      "      Write-Host ($Prefix + $connector + $entry.Name) -ForegroundColor $color",
+      "      $State.Shown++",
+      "      if ($entry.PSIsContainer -and ($CurrentDepth + 1 -lt $Depth)) {",
+      "        $childPrefix = $Prefix + $(if ($isLast) { '    ' } else { '│   ' })",
+      "        & $walk $entry $childPrefix ($CurrentDepth + 1) $State",
+      "        if ($State.Truncated) { break }",
+      "      }",
+      "    }",
+      "  }",
+      "  & $walk $root '' 0 $state",
+      "  if ($state.Truncated) {",
+      "    Write-Host (\"… output capped at {0} entries (use -Limit <number> or -All)\" -f $state.Limit) -ForegroundColor DarkGray",
+      "  }",
+      "}",
+    ],
+    "Adding the tree-style ls command to the Windows PowerShell profile",
   );
 }

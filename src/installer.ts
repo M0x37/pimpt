@@ -32,6 +32,7 @@ import {
 import {
   addTerminalIconsToPowerShellProfile,
   addHistoryPreviewToPowerShellProfile,
+  addTreeListingToPowerShellProfile,
   installPSReadLineModule,
   installTerminalIconsModule,
 } from "./powershell.js";
@@ -686,7 +687,9 @@ export async function runInstaller(): Promise<void> {
           setting.id === "terminalIcons" ||
           setting.id === "hidePowerShellBanner")) ||
       (setting.group === "Features" &&
-        (setting.jsonPath !== undefined || setting.id === "historyPreview")),
+        (setting.jsonPath !== undefined ||
+          setting.id === "historyPreview" ||
+          setting.id === "treeListing")),
   );
   const settingsPath = findSettingsPath();
   const backups = settingsPath ? listSettingsBackups(settingsPath) : [];
@@ -866,6 +869,7 @@ export async function runInstaller(): Promise<void> {
   s.message(
     answers.terminalIcons === true ||
     answers.historyPreview === true ||
+    answers.treeListing === true ||
     answers.hidePowerShellBanner === true
       ? "Applying PowerShell options…"
       : "Writing settings.json…",
@@ -878,6 +882,9 @@ export async function runInstaller(): Promise<void> {
       installPSReadLineModule();
       addHistoryPreviewToPowerShellProfile();
     }
+    if (answers.treeListing === true) {
+      addTreeListingToPowerShellProfile();
+    }
   } catch (error) {
     if (!(error instanceof InvalidSettingsFileError)) throw error;
 
@@ -886,19 +893,20 @@ export async function runInstaller(): Promise<void> {
     return;
   }
 
-  s.stop("Settings written to settings.json.");
+  s.stop("Configuration applied successfully.");
 
   const fontSelected =
     answers.fontFace !== undefined && answers.fontFace !== "keep";
   const powerShellFeatureSelected =
     answers.terminalIcons === true ||
     answers.historyPreview === true ||
+    answers.treeListing === true ||
     answers.hidePowerShellBanner === true;
   if (fontSelected || powerShellFeatureSelected) openNewTerminalTab();
   outro(
     [
       `${pc.green("✓")} Your configuration is ready.`,
-      pc.dim("Your settings are stored in settings.json."),
+      pc.dim("Your selected settings and features are ready."),
     ].join("\n"),
   );
 }

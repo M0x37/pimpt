@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
     addTerminalIconsToPowerShellProfile: vi.fn(),
     installPSReadLineModule: vi.fn(),
     addHistoryPreviewToPowerShellProfile: vi.fn(),
+    addTreeListingToPowerShellProfile: vi.fn(),
     createSettingsBackup: vi.fn(),
     listSettingsBackups: vi.fn(() => []),
     restoreSettingsBackup: vi.fn(),
@@ -102,6 +103,7 @@ vi.mock("../src/powershell", () => ({
   addTerminalIconsToPowerShellProfile: mocks.addTerminalIconsToPowerShellProfile,
   installPSReadLineModule: mocks.installPSReadLineModule,
   addHistoryPreviewToPowerShellProfile: mocks.addHistoryPreviewToPowerShellProfile,
+  addTreeListingToPowerShellProfile: mocks.addTreeListingToPowerShellProfile,
 }));
 
 vi.mock("../src/wtsettings", () => ({
@@ -151,7 +153,7 @@ function selectResponses(...values: unknown[]): void {
   let activeArea: string | undefined;
   for (const value of values) {
     const settingArea =
-      value === "historyPreview"
+      value === "historyPreview" || value === "treeListing"
         ? "Features"
         : value === "transparency" ||
             value === "background" ||
@@ -319,7 +321,7 @@ describe("runInstaller", () => {
     expect(mocks.createSettingsBackup).toHaveBeenCalledOnce();
     expect(mocks.createSettingsBackup).toHaveBeenCalledBefore(writeSettingsFile);
     expect(spinner.stop).toHaveBeenCalledWith(
-      "Settings written to settings.json.",
+      "Configuration applied successfully.",
     );
   });
 
@@ -609,6 +611,7 @@ describe("runInstaller", () => {
     expect(featureOptions.options.map((option) => option.value)).toEqual([
       "startingDirectory",
       "historyPreview",
+      "treeListing",
       "back",
     ]);
     expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
@@ -618,6 +621,30 @@ describe("runInstaller", () => {
     expect(summaryText()).toContain("Features");
     expect(mocks.installPSReadLineModule).toHaveBeenCalledOnce();
     expect(mocks.addHistoryPreviewToPowerShellProfile).toHaveBeenCalledOnce();
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("enables tree-style directory listings for PowerShell", async () => {
+    selectResponses("treeListing", "done");
+    mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    const featureOptions = mocks.select.mock.calls[1]?.[0] as {
+      options: { value: string }[];
+    };
+    expect(featureOptions.options.map((option) => option.value)).toEqual([
+      "startingDirectory",
+      "historyPreview",
+      "treeListing",
+      "back",
+    ]);
+    expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining("colored tree"),
+    });
+    expect(summaryText()).toContain("Tree-style ls");
+    expect(mocks.addTreeListingToPowerShellProfile).toHaveBeenCalledOnce();
     expect(setSetting).not.toHaveBeenCalled();
     expect(writeSettingsFile).not.toHaveBeenCalled();
   });

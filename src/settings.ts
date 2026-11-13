@@ -406,6 +406,19 @@ export const settings: SettingDefinition[] = [
     summarize: onOff,
   },
   {
+    id: "treeListing",
+    group: "Features",
+    label: "Tree-style ls",
+    hint: "Show files in a colored directory tree",
+    prompt: {
+      kind: "confirm",
+      message:
+        "Show directory contents as a colored tree when you run ls? Output is capped at 50 entries by default. Use -Limit or -All for more. Get-ChildItem remains available as gci.",
+      initialValue: true,
+    },
+    summarize: onOff,
+  },
+  {
     id: "hidePowerShellBanner",
     group: "Appearance",
     label: "Hide PowerShell startup banner",
