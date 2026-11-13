@@ -131,12 +131,14 @@ export async function runInstaller(): Promise<void> {
     "Preview mode",
   );
 
-  // Erster Schritt: nur die Appearance-Gruppe im Picker anbieten.
+  // Erster Schritt: nur die Appearance-Gruppe, und darin nur "Background".
   const appearanceOptions = Object.fromEntries(
     Object.entries(buildGroupedOptions()).filter(
       ([group]) => group === "Appearance",
     ),
   );
+  appearanceOptions.Appearance =
+    appearanceOptions.Appearance?.filter((option) => option.value === "background") ?? [];
 
   const selected = bail(
     await groupMultiselect<string>({

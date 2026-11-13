@@ -71,9 +71,9 @@ beforeEach(() => {
 });
 
 describe("runInstaller", () => {
-  it("offers only the Appearance group in the picker", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["transparency", "background"]);
-    mocks.select.mockResolvedValueOnce("80").mockResolvedValueOnce("#2E3440");
+  it("offers only the Appearance group with background only", async () => {
+    mocks.groupMultiselect.mockResolvedValue(["background"]);
+    mocks.select.mockResolvedValue("#2E3440");
     mocks.confirm.mockResolvedValue(true);
 
     await runInstaller();
@@ -87,22 +87,24 @@ describe("runInstaller", () => {
     };
 
     expect(Object.keys(options.options)).toEqual(["Appearance"]);
+    expect((options.options as Record<string, unknown>).Appearance).toEqual([
+      { value: "background", label: "Background color", hint: "Palette preset or custom hex" },
+    ]);
     expect(options.maxItems).toBe(8);
     expect(options.selectableGroups).toBe(false);
   });
 
-  it("asks only Appearance settings and renders a grouped summary", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["transparency", "background"]);
-    mocks.select.mockResolvedValueOnce("80").mockResolvedValueOnce("#2E3440");
+  it("asks only background and renders a grouped summary", async () => {
+    mocks.groupMultiselect.mockResolvedValue(["background"]);
+    mocks.select.mockResolvedValue("#2E3440");
     mocks.confirm.mockResolvedValue(true);
 
     await runInstaller();
 
-    expect(mocks.select).toHaveBeenCalledTimes(2);
+    expect(mocks.select).toHaveBeenCalledTimes(1);
     expect(mocks.confirm).toHaveBeenCalledOnce();
 
     expect(summaryText()).toContain("Appearance");
-    expect(summaryText()).toContain("Acrylic · 80% opacity");
     expect(summaryText()).toContain("Nord (#2E3440)");
 
     expect(spinner.start).toHaveBeenCalledOnce();
@@ -130,7 +132,7 @@ describe("runInstaller", () => {
   });
 
   it("stops when the user declines the installation", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["transparency"]);
+    mocks.groupMultiselect.mockResolvedValue(["background"]);
     mocks.select.mockResolvedValue("70");
     mocks.confirm.mockResolvedValue(false);
 
