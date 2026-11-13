@@ -21,10 +21,14 @@ const mocks = vi.hoisted(() => {
     addTerminalIconsToPowerShellProfile: vi.fn(),
     installPSReadLineModule: vi.fn(),
     addHistoryPreviewToPowerShellProfile: vi.fn(),
+    addLazyGitToPowerShellProfile: vi.fn(),
+    addCrossDriveCdToPowerShellProfile: vi.fn(),
     addTreeListingToPowerShellProfile: vi.fn(),
     readPowerShellProfileFeatures: vi.fn(() => ({
       terminalIcons: false,
       historyPreview: false,
+      lazyGit: false,
+      crossDriveCd: false,
       treeListing: false,
     })),
     createSettingsBackup: vi.fn(),
@@ -108,6 +112,8 @@ vi.mock("../src/powershell", () => ({
   addTerminalIconsToPowerShellProfile: mocks.addTerminalIconsToPowerShellProfile,
   installPSReadLineModule: mocks.installPSReadLineModule,
   addHistoryPreviewToPowerShellProfile: mocks.addHistoryPreviewToPowerShellProfile,
+  addLazyGitToPowerShellProfile: mocks.addLazyGitToPowerShellProfile,
+  addCrossDriveCdToPowerShellProfile: mocks.addCrossDriveCdToPowerShellProfile,
   addTreeListingToPowerShellProfile: mocks.addTreeListingToPowerShellProfile,
   readPowerShellProfileFeatures: mocks.readPowerShellProfileFeatures,
 }));
@@ -159,7 +165,11 @@ function selectResponses(...values: unknown[]): void {
   let activeArea: string | undefined;
   for (const value of values) {
     const settingArea =
-      value === "historyPreview" || value === "treeListing"
+      value === "historyPreview" ||
+      value === "lazyGit" ||
+      value === "crossDriveCd" ||
+      value === "treeListing" ||
+      value === "startingDirectory"
         ? "Features"
         : value === "transparency" ||
             value === "background" ||
@@ -167,8 +177,6 @@ function selectResponses(...values: unknown[]): void {
             value === "terminalIcons" ||
             value === "hidePowerShellBanner"
           ? "Appearance"
-          : value === "startingDirectory"
-            ? "Features"
           : undefined;
     if (settingArea && activeArea !== settingArea) {
       if (activeArea) mocks.select.mockResolvedValueOnce("back");
@@ -220,6 +228,8 @@ beforeEach(() => {
   mocks.readPowerShellProfileFeatures.mockReturnValue({
     terminalIcons: false,
     historyPreview: false,
+    lazyGit: false,
+    crossDriveCd: false,
     treeListing: false,
   });
 });
@@ -229,6 +239,8 @@ describe("runInstaller", () => {
     mocks.readPowerShellProfileFeatures.mockReturnValue({
       terminalIcons: false,
       historyPreview: true,
+      lazyGit: true,
+      crossDriveCd: true,
       treeListing: true,
     });
     selectResponses("historyPreview", "done");
@@ -244,6 +256,14 @@ describe("runInstaller", () => {
         ?.label,
     ).toContain("●");
     expect(
+      featureOptions.options.find((option) => option.value === "lazyGit")
+        ?.label,
+    ).toContain("●");
+    expect(
+      featureOptions.options.find((option) => option.value === "crossDriveCd")
+        ?.label,
+    ).toContain("●");
+    expect(
       featureOptions.options.find((option) => option.value === "treeListing")
         ?.label,
     ).toContain("●");
@@ -253,6 +273,8 @@ describe("runInstaller", () => {
     mocks.readPowerShellProfileFeatures.mockReturnValue({
       terminalIcons: true,
       historyPreview: false,
+      lazyGit: false,
+      crossDriveCd: false,
       treeListing: false,
     });
     selectResponses("terminalIcons", "done");
@@ -666,6 +688,8 @@ describe("runInstaller", () => {
     expect(featureOptions.options.map((option) => option.value)).toEqual([
       "startingDirectory",
       "historyPreview",
+      "lazyGit",
+      "crossDriveCd",
       "treeListing",
       "back",
     ]);
@@ -676,6 +700,48 @@ describe("runInstaller", () => {
     expect(summaryText()).toContain("Features");
     expect(mocks.installPSReadLineModule).toHaveBeenCalledOnce();
     expect(mocks.addHistoryPreviewToPowerShellProfile).toHaveBeenCalledOnce();
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("enables Lazy Git with a custom lg TUI and tab completion", async () => {
+    selectResponses("lazyGit", "done");
+    mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    const featureOptions = mocks.select.mock.calls[1]?.[0] as {
+      options: { value: string }[];
+    };
+    expect(featureOptions.options.map((option) => option.value)).toEqual([
+      "startingDirectory",
+      "historyPreview",
+      "lazyGit",
+      "crossDriveCd",
+      "treeListing",
+      "back",
+    ]);
+    expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining("interactive lg command"),
+    });
+    expect(summaryText()).toContain("Lazy Git (lg)");
+    expect(summaryText()).toContain("Features");
+    expect(mocks.addLazyGitToPowerShellProfile).toHaveBeenCalledOnce();
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("enables cross-drive cd for switching volumes", async () => {
+    selectResponses("crossDriveCd", "done");
+    mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining("cross-drive cd"),
+    });
+    expect(summaryText()).toContain("Cross-drive cd");
+    expect(mocks.addCrossDriveCdToPowerShellProfile).toHaveBeenCalledOnce();
     expect(setSetting).not.toHaveBeenCalled();
     expect(writeSettingsFile).not.toHaveBeenCalled();
   });
@@ -692,6 +758,8 @@ describe("runInstaller", () => {
     expect(featureOptions.options.map((option) => option.value)).toEqual([
       "startingDirectory",
       "historyPreview",
+      "lazyGit",
+      "crossDriveCd",
       "treeListing",
       "back",
     ]);
@@ -760,6 +828,15 @@ describe("runInstaller", () => {
 
     expect(mocks.installPSReadLineModule).not.toHaveBeenCalled();
     expect(mocks.addHistoryPreviewToPowerShellProfile).not.toHaveBeenCalled();
+  });
+
+  it("does not install Lazy Git when the user declines", async () => {
+    selectResponses("lazyGit", "done");
+    mocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.addLazyGitToPowerShellProfile).not.toHaveBeenCalled();
   });
 
   it("restores a selected backup after confirming and keeps a safety backup", async () => {

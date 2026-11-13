@@ -49,7 +49,11 @@ The installer detects the Windows Terminal settings file for the Stable, Preview
 
 - Set a default starting directory. Relative paths such as `Downloads` resolve from your user folder.
 - Enable a scrollable command history preview with PSReadLine.
+- Enable Lazy Git (`lg`): an interactive Git UI for status, staging, commit, push/pull, branches, log, and stash, plus Tab completion for Git commands, branches, and files.
+- Enable cross-drive `cd` so you can switch from C: to D: (and other drives) with `cd D`, `cd D:`, or `cd /d D:\path`.
 - Enable a colored tree view for `ls`.
+
+When cross-drive `cd` is enabled, `Set-Location` remains available for the built-in behavior.
 
 When tree-style `ls` is enabled, the original `Get-ChildItem` command remains available as `gci`.
 
@@ -82,18 +86,6 @@ npm run typecheck
 npm run build
 ```
 
-## Publishing
-
-Publishing is available manually from the GitHub Actions tab using the
-`Publish to npm` workflow. It checks out the latest commit on `main`, runs the
-typecheck, tests, and build, then publishes the version in `package.json` with
-the `latest` npm tag. If that version is already published, it updates the
-`latest` tag instead of trying to upload the version again.
-
-Before running it, add an npm access token with publish permission as the
-repository Actions secret `NPM_TOKEN`. Update the package version in
-`package.json` and `package-lock.json` and push the changes to `main` first.
-Published versions cannot be overwritten, so each publish needs a new version.
 
 ## License
 

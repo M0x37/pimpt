@@ -32,6 +32,8 @@ import {
 import {
   addTerminalIconsToPowerShellProfile,
   addHistoryPreviewToPowerShellProfile,
+  addCrossDriveCdToPowerShellProfile,
+  addLazyGitToPowerShellProfile,
   addTreeListingToPowerShellProfile,
   installPSReadLineModule,
   installTerminalIconsModule,
@@ -409,6 +411,8 @@ function readConfiguredAnswers(
     const profileFeatures = readPowerShellProfileFeatures();
     if (profileFeatures.terminalIcons) answers.terminalIcons = true;
     if (profileFeatures.historyPreview) answers.historyPreview = true;
+    if (profileFeatures.lazyGit) answers.lazyGit = true;
+    if (profileFeatures.crossDriveCd) answers.crossDriveCd = true;
     if (profileFeatures.treeListing) answers.treeListing = true;
   } catch (error) {
     log.warn(
@@ -702,8 +706,10 @@ export async function runInstaller(): Promise<void> {
       (setting.group === "Features" &&
         (setting.jsonPath !== undefined ||
           setting.id === "historyPreview" ||
+          setting.id === "lazyGit" ||
+          setting.id === "crossDriveCd" ||
           setting.id === "treeListing")),
-  );
+    );
   const settingsPath = findSettingsPath();
   const backups = settingsPath ? listSettingsBackups(settingsPath) : [];
   const answers = readConfiguredAnswers(settingsPath);
@@ -882,6 +888,8 @@ export async function runInstaller(): Promise<void> {
   s.message(
     answers.terminalIcons === true ||
     answers.historyPreview === true ||
+    answers.lazyGit === true ||
+    answers.crossDriveCd === true ||
     answers.treeListing === true ||
     answers.hidePowerShellBanner === true
       ? "Applying PowerShell options…"
@@ -894,6 +902,12 @@ export async function runInstaller(): Promise<void> {
     if (answers.historyPreview === true) {
       installPSReadLineModule();
       addHistoryPreviewToPowerShellProfile();
+    }
+    if (answers.lazyGit === true) {
+      addLazyGitToPowerShellProfile();
+    }
+    if (answers.crossDriveCd === true) {
+      addCrossDriveCdToPowerShellProfile();
     }
     if (answers.treeListing === true) {
       addTreeListingToPowerShellProfile();
@@ -913,6 +927,8 @@ export async function runInstaller(): Promise<void> {
   const powerShellFeatureSelected =
     answers.terminalIcons === true ||
     answers.historyPreview === true ||
+    answers.lazyGit === true ||
+    answers.crossDriveCd === true ||
     answers.treeListing === true ||
     answers.hidePowerShellBanner === true;
   if (fontSelected || powerShellFeatureSelected) openNewTerminalTab();

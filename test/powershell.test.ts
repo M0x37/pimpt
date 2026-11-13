@@ -9,6 +9,8 @@ vi.mock("node:child_process", () => ({
 }));
 
 import {
+  addCrossDriveCdToPowerShellProfile,
+  addLazyGitToPowerShellProfile,
   addTreeListingToPowerShellProfile,
   readPowerShellProfileFeatures,
 } from "../src/powershell";
@@ -22,6 +24,68 @@ function decodeProfileBlock(script: string): string {
   if (!encodedBlock) throw new Error("PowerShell profile block was not encoded.");
   return Buffer.from(encodedBlock, "base64").toString("utf16le");
 }
+
+describe("addLazyGitToPowerShellProfile", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("adds a custom lg TUI and Git tab completion without importing modules", () => {
+    vi.stubGlobal("process", { platform: "win32" });
+    try {
+      addLazyGitToPowerShellProfile();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const scripts = mocks.execFileSync.mock.calls.map(
+      (call) => call[1][4] as string,
+    );
+    const lazyGitBlock = scripts[0]
+      ? decodeProfileBlock(scripts[0])
+      : undefined;
+    const completionBlock = scripts[1]
+      ? decodeProfileBlock(scripts[1])
+      : undefined;
+
+    expect(lazyGitBlock).toContain("# >>> pimpt lazy git >>>");
+    expect(lazyGitBlock).toContain("function lg {");
+    expect(lazyGitBlock).toContain("Staged");
+    expect(lazyGitBlock).toContain("git commit -m");
+    expect(lazyGitBlock).not.toContain("Import-Module");
+    expect(completionBlock).toContain("# >>> pimpt git completion >>>");
+    expect(completionBlock).toContain("Register-ArgumentCompleter -Native -CommandName git");
+  });
+});
+
+describe("addCrossDriveCdToPowerShellProfile", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("removes the cd alias and allows switching drives by letter", () => {
+    vi.stubGlobal("process", { platform: "win32" });
+    try {
+      addCrossDriveCdToPowerShellProfile();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const scripts = mocks.execFileSync.mock.calls.map(
+      (call) => call[1][4] as string,
+    );
+    const aliasBlock = scripts[0]
+      ? decodeProfileBlock(scripts[0])
+      : undefined;
+    const cdBlock = scripts[1] ? decodeProfileBlock(scripts[1]) : undefined;
+
+    expect(aliasBlock).toContain("Remove-Item Alias:cd");
+    expect(cdBlock).toContain("function cd {");
+    expect(cdBlock).toContain("^[A-Za-z]:?$");
+    expect(cdBlock).toContain("drive {0}: is not available");
+    expect(cdBlock).toContain("^[/_-]d$");
+  });
+});
 
 describe("addTreeListingToPowerShellProfile", () => {
   beforeEach(() => {
@@ -67,6 +131,12 @@ describe("readPowerShellProfileFeatures", () => {
       "# >>> pimpt command history preview >>>",
       "Set-PSReadLineOption -PredictionViewStyle ListView",
       "# <<< pimpt command history preview <<<",
+      "# >>> pimpt lazy git >>>",
+      "function lg {}",
+      "# <<< pimpt lazy git <<<",
+      "# >>> pimpt cross-drive cd >>>",
+      "function cd {}",
+      "# <<< pimpt cross-drive cd <<<",
       "# >>> pimpt tree-style ls v2 >>>",
       "function ls {}",
       "# <<< pimpt tree-style ls v2 <<<",
@@ -79,6 +149,8 @@ describe("readPowerShellProfileFeatures", () => {
       expect(readPowerShellProfileFeatures()).toEqual({
         terminalIcons: true,
         historyPreview: true,
+        lazyGit: true,
+        crossDriveCd: true,
         treeListing: true,
       });
     } finally {

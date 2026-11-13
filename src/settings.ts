@@ -406,6 +406,32 @@ export const settings: SettingDefinition[] = [
     summarize: onOff,
   },
   {
+    id: "lazyGit",
+    group: "Features",
+    label: "Lazy Git (lg)",
+    hint: "Interactive Git UI like lazygit",
+    prompt: {
+      kind: "confirm",
+      message:
+        "Enable Lazy Git? Adds an interactive lg command (status, stage, commit, push/pull, branches, log, stash) and Tab completion for Git commands, branches, and files.",
+      initialValue: true,
+    },
+    summarize: onOff,
+  },
+  {
+    id: "crossDriveCd",
+    group: "Features",
+    label: "Cross-drive cd",
+    hint: "Switch drives with cd D or cd D:",
+    prompt: {
+      kind: "confirm",
+      message:
+        "Enable cross-drive cd? Lets you switch drives from any folder with cd D, cd D:, or cd /d D:\\path. Set-Location remains available as usual.",
+      initialValue: true,
+    },
+    summarize: onOff,
+  },
+  {
     id: "treeListing",
     group: "Features",
     label: "Tree-style ls",
