@@ -50,17 +50,16 @@ export function writeSettingsFile(settingsPath: string, content: string): void {
 /**
  * Wendet eine Änderung an der settings.json an.
  *
- * @param settingsPath - Pfad zur settings.json
+ * @param content - Der aktuelle Inhalt der settings.json
  * @param jsonPath - Pfad im JSON, z. B. ["profiles", "defaults", "background"]
  * @param value - Der neue Wert
  * @returns Der neu geschriebene Dateiinhalt
  */
 export function setSetting(
-  settingsPath: string,
+  content: string,
   jsonPath: string[],
   value: unknown,
 ): string {
-  const content = readSettingsFile(settingsPath);
   const parseErrors: ParseError[] = [];
   const parsedContent = parse(content, parseErrors, { allowTrailingComma: true });
   if (

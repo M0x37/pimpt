@@ -1,7 +1,6 @@
 import {
   cancel,
   confirm,
-  groupMultiselect,
   intro,
   isCancel,
   log,
@@ -15,7 +14,6 @@ import pc from "picocolors";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   BACKGROUND_CUSTOM,
-  buildGroupedOptions,
   settings,
   type SettingDefinition,
   type SettingValue,
@@ -154,7 +152,33 @@ async function applySettings(
     if (!setting.jsonPath) continue;
     if (setting.skipIfKeep && value === "keep") continue;
 
-    content = setSetting(settingsPath, setting.jsonPath, value);
+    if (setting.id === "transparency") {
+      const opacity = value === "off" ? 100 : Number(value);
+      if (!Number.isInteger(opacity) || opacity < 0 || opacity > 100) {
+        throw new Error(`Invalid transparency value: ${String(value)}`);
+      }
+
+      content = setSetting(content, setting.jsonPath, opacity);
+      content = setSetting(
+        content,
+        ["profiles", "defaults", "useAcrylic"],
+        value !== "off",
+      );
+      content = setSetting(
+        content,
+        ["useAcrylicInTabRow"],
+        value !== "off",
+      );
+    } else if (setting.id === "background") {
+      content = setSetting(content, setting.jsonPath, value);
+      content = setSetting(
+        content,
+        ["profiles", "defaults", "tabColor"],
+        value,
+      );
+    } else {
+      content = setSetting(content, setting.jsonPath, value);
+    }
     dirty = true;
   }
 
@@ -175,34 +199,51 @@ export async function runInstaller(): Promise<void> {
     "Preview mode",
   );
 
-  // Picker: nur die Appearance-Gruppe, darin nur "Background".
-  // Background ist vorausgewählt, sodass direkt mit Enter weitergegangen
-  // werden kann – ohne vorher Space drücken zu müssen.
-  const appearanceOptions = Object.fromEntries(
-    Object.entries(buildGroupedOptions()).filter(
-      ([group]) => group === "Appearance",
-    ),
-  );
-  appearanceOptions.Appearance =
-    appearanceOptions.Appearance?.filter((option) => option.value === "background") ?? [];
-
-  const selected = bail(
-    await groupMultiselect<string>({
-      message: "What would you like to customize?",
-      options: appearanceOptions,
-      initialValues: ["background"],
-      required: true,
-      selectableGroups: false,
-      maxItems: 8,
-    }),
-  );
-
-  const chosen = settings.filter(
-    (setting) => setting.group === "Appearance" && selected.includes(setting.id),
+  const appearanceSettings = settings.filter(
+    (setting) => setting.group === "Appearance" && setting.jsonPath,
   );
   const answers: Record<string, SettingValue> = {};
+  let initialPickerValue = appearanceSettings[0]?.id;
 
-  for (const setting of chosen) {
+  while (true) {
+    const options = appearanceSettings.map((setting) => ({
+      value: setting.id,
+      label:
+        answers[setting.id] === undefined
+          ? setting.label
+          : `${pc.blue("●")} ${setting.label}`,
+      hint: setting.hint,
+    }));
+    if (Object.keys(answers).length > 0) {
+      options.push({
+        value: "done",
+        label: "Done",
+        hint: "Review and apply your settings",
+      });
+    }
+
+    const firstOption = options[0];
+    if (!firstOption) {
+      throw new Error("No appearance settings are available.");
+    }
+
+    const selectedId = bail(
+      await select<string>({
+        message: "What would you like to customize?",
+        options,
+        initialValue: initialPickerValue ?? firstOption.value,
+      }),
+    );
+    if (selectedId === "done") break;
+
+    const setting = appearanceSettings.find(
+      (candidate) => candidate.id === selectedId,
+    );
+    if (!setting) {
+      throw new Error(`Unknown appearance setting selected: ${selectedId}`);
+    }
+
+    initialPickerValue = selectedId;
     log.step(pc.bold(pc.cyan(setting.group)));
     answers[setting.id] = await askSetting(setting);
   }

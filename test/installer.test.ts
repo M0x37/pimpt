@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => {
     logStep: vi.fn(),
     logWarn: vi.fn(),
     logInfo: vi.fn(),
-    groupMultiselect: vi.fn(),
     select: vi.fn(),
     text: vi.fn(),
     confirm: vi.fn(),
@@ -27,7 +26,6 @@ vi.mock("@clack/prompts", () => ({
   note: mocks.note,
   outro: mocks.outro,
   cancel: mocks.cancel,
-  groupMultiselect: mocks.groupMultiselect,
   select: mocks.select,
   text: mocks.text,
   confirm: mocks.confirm,
@@ -82,6 +80,12 @@ function summaryText(): string {
   );
 }
 
+function selectResponses(...values: unknown[]): void {
+  for (const value of values) {
+    mocks.select.mockResolvedValueOnce(value);
+  }
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -104,39 +108,47 @@ beforeEach(() => {
 });
 
 describe("runInstaller", () => {
-  it("offers only the Appearance group with background preselected", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
-    mocks.select.mockResolvedValue("#2E3440");
+  it("offers settings without automatically selecting background", async () => {
+    selectResponses("transparency", "0", "done");
     mocks.confirm.mockResolvedValue(true);
 
     await runInstaller();
 
-    expect(mocks.groupMultiselect).toHaveBeenCalledOnce();
-
-    const options = mocks.groupMultiselect.mock.calls[0]?.[0] as {
-      options: Record<string, unknown>;
-      initialValues?: string[];
-      maxItems?: number;
-      selectableGroups?: boolean;
+    const options = mocks.select.mock.calls[0]?.[0] as {
+      options: { value: string; label: string; hint: string }[];
+      initialValue: string;
     };
 
-    expect(Object.keys(options.options)).toEqual(["Appearance"]);
-    expect((options.options as Record<string, unknown>).Appearance).toEqual([
-      { value: "background", label: "Background color", hint: "Palette preset or custom hex" },
+    expect(options.options).toEqual([
+      { value: "transparency", label: "Transparency", hint: "Window opacity and acrylic tab row" },
+      {
+        value: "background",
+        label: "Background color",
+        hint: "Palette preset or custom hex; also colors the active tab",
+      },
     ]);
-    expect(options.initialValues).toEqual(["background"]);
-    expect(options.maxItems).toBe(8);
-    expect(options.selectableGroups).toBe(false);
+    expect(options.initialValue).toBe("transparency");
+    const returnedOptions = mocks.select.mock.calls[2]?.[0] as {
+      options: { value: string; label: string }[];
+    };
+    expect(
+      returnedOptions.options.find((option) => option.value === "transparency")
+        ?.label,
+    ).toContain("●");
+    expect(setSetting).not.toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "defaults", "background"],
+      expect.anything(),
+    );
   });
 
   it("asks for background color and renders a grouped summary", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
-    mocks.select.mockResolvedValue("#2E3440");
+    selectResponses("background", "#2E3440", "done");
     mocks.confirm.mockResolvedValue(true);
 
     await runInstaller();
 
-    expect(mocks.select).toHaveBeenCalledTimes(1);
+    expect(mocks.select).toHaveBeenCalledTimes(3);
     expect(mocks.confirm).toHaveBeenCalledOnce();
 
     expect(summaryText()).toContain("Appearance");
@@ -148,8 +160,7 @@ describe("runInstaller", () => {
   });
 
   it("writes background color to settings.json", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
-    mocks.select.mockResolvedValue("#2E3440");
+    selectResponses("background", "#2E3440", "done");
     mocks.confirm.mockResolvedValue(true);
 
     await runInstaller();
@@ -161,15 +172,82 @@ describe("runInstaller", () => {
       ["profiles", "defaults", "background"],
       "#2E3440",
     );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      2,
+      '{"modified": true}',
+      ["profiles", "defaults", "tabColor"],
+      "#2E3440",
+    );
     expect(writeSettingsFile).toHaveBeenCalledOnce();
     expect(spinner.stop).toHaveBeenCalledWith(
       "Settings written to settings.json.",
     );
   });
 
+  it("offers full transparency and writes opacity plus acrylic settings", async () => {
+    selectResponses("transparency", "0", "done");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    const options = mocks.select.mock.calls[1]?.[0] as {
+      options: { value: string; label: string; hint: string }[];
+    };
+    expect(options.options).toContainEqual({
+      value: "0",
+      label: "Fully transparent",
+      hint: "Content 0%; tab row 50% acrylic",
+    });
+    expect(summaryText()).toContain("Fully transparent");
+    expect(setSetting).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      ["profiles", "defaults", "opacity"],
+      0,
+    );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      2,
+      '{"modified": true}',
+      ["profiles", "defaults", "useAcrylic"],
+      true,
+    );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      3,
+      '{"modified": true}',
+      ["useAcrylicInTabRow"],
+      true,
+    );
+    expect(writeSettingsFile).toHaveBeenCalledOnce();
+  });
+
+  it("disables acrylic when transparency is off", async () => {
+    selectResponses("transparency", "off", "done");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(setSetting).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      ["profiles", "defaults", "opacity"],
+      100,
+    );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      ["profiles", "defaults", "useAcrylic"],
+      false,
+    );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      3,
+      expect.any(String),
+      ["useAcrylicInTabRow"],
+      false,
+    );
+  });
+
   it("asks for a custom background color and validates it", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
-    mocks.select.mockResolvedValue("custom");
+    selectResponses("background", "custom", "done");
     mocks.text.mockResolvedValue("1e1e2e");
     mocks.confirm.mockResolvedValue(true);
 
@@ -187,8 +265,7 @@ describe("runInstaller", () => {
   });
 
   it("skips writing when value is 'keep'", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
-    mocks.select.mockResolvedValue("keep");
+    selectResponses("background", "keep", "done");
     mocks.confirm.mockResolvedValue(true);
 
     await runInstaller();
@@ -198,8 +275,7 @@ describe("runInstaller", () => {
   });
 
   it("stops when the user declines the installation", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
-    mocks.select.mockResolvedValue("70");
+    selectResponses("background", "70", "done");
     mocks.confirm.mockResolvedValue(false);
 
     await runInstaller();
@@ -217,7 +293,7 @@ describe("runInstaller", () => {
       throw new Error(`exit:${code}`);
     }) as never);
 
-    mocks.groupMultiselect.mockResolvedValue(mocks.cancelSymbol);
+    selectResponses(mocks.cancelSymbol);
 
     await expect(runInstaller()).rejects.toThrow("exit:0");
 
@@ -231,8 +307,7 @@ describe("runInstaller", () => {
 
   it("warns when settings.json is not found", async () => {
     vi.mocked(findSettingsPath).mockReturnValue(undefined);
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
-    mocks.select.mockResolvedValue("#2E3440");
+    selectResponses("background", "#2E3440", "done");
     mocks.confirm.mockResolvedValue(true);
 
     await runInstaller();
@@ -245,8 +320,7 @@ describe("runInstaller", () => {
 
   it("reports invalid settings without showing a success message", async () => {
     const originalExitCode = process.exitCode;
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
-    mocks.select.mockResolvedValue("#2E3440");
+    selectResponses("background", "#2E3440", "done");
     mocks.confirm.mockResolvedValue(true);
     setSetting.mockImplementation(() => {
       throw new InvalidSettingsFileError(
