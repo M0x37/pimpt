@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 interface FontAsset {
   fileName: string;
@@ -17,6 +19,14 @@ const fontRegistryKeys = [
 ];
 const userFontsRegistryKey =
   "HKCU\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts";
+export const NERD_FONT_FAMILY = "Hack Nerd Font Mono";
+const nerdFontArchive = {
+  fileName: "Hack.tar.xz",
+  url: "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/Hack.tar.xz",
+  sha256: "cdd389472e10e2261520140ff1b382b4f8a226af5fd0b2735b975d31151d9c3c",
+  fontEntry: "HackNerdFontMono-Regular.ttf",
+  licenseEntry: "LICENSE.md",
+};
 
 const fontAssets: Record<string, FontAsset> = {
   "Cascadia Mono": {
@@ -130,24 +140,18 @@ function isFontFile(data: Buffer): boolean {
   );
 }
 
-export async function installFont(fontFamily: string): Promise<void> {
-  assertWindows();
-  const asset = fontAssets[fontFamily];
-  if (!asset) {
-    throw new Error(`Automatic installation is not supported for ${fontFamily}.`);
-  }
-
-  const localAppData = process.env.LOCALAPPDATA;
-  if (!localAppData) {
-    throw new Error("LOCALAPPDATA is not set; the font cannot be installed.");
-  }
-
-  const [fontData, licenseData] = await Promise.all([
-    download(asset.fontUrl, `${fontFamily} font`),
-    download(asset.licenseUrl, `${fontFamily} license`),
-  ]);
+async function saveAndRegisterFont(
+  localAppData: string,
+  fontFamily: string,
+  fileName: string,
+  licenseFileName: string,
+  fontData: Buffer,
+  licenseData: Buffer,
+): Promise<void> {
   if (!isFontFile(fontData)) {
-    throw new Error(`The downloaded ${fontFamily} file is not a valid TrueType/OpenType font.`);
+    throw new Error(
+      `The downloaded ${fontFamily} file is not a valid TrueType/OpenType font.`,
+    );
   }
 
   const licenseText = licenseData.toString("utf8").toLowerCase();
@@ -158,8 +162,8 @@ export async function installFont(fontFamily: string): Promise<void> {
   const fontDirectory = join(localAppData, "Microsoft", "Windows", "Fonts");
   await mkdir(fontDirectory, { recursive: true });
 
-  const fontPath = join(fontDirectory, asset.fileName);
-  const licensePath = join(fontDirectory, asset.licenseFileName);
+  const fontPath = join(fontDirectory, fileName);
+  const licensePath = join(fontDirectory, licenseFileName);
   await writeFile(fontPath, fontData);
   await writeFile(licensePath, licenseData);
 
@@ -178,4 +182,81 @@ export async function installFont(fontFamily: string): Promise<void> {
     ],
     { encoding: "utf8", windowsHide: true, stdio: "pipe" },
   );
+}
+
+export async function installFont(fontFamily: string): Promise<void> {
+  assertWindows();
+  const asset = fontAssets[fontFamily];
+  if (!asset) {
+    throw new Error(`Automatic installation is not supported for ${fontFamily}.`);
+  }
+
+  const localAppData = process.env.LOCALAPPDATA;
+  if (!localAppData) {
+    throw new Error("LOCALAPPDATA is not set; the font cannot be installed.");
+  }
+
+  const [fontData, licenseData] = await Promise.all([
+    download(asset.fontUrl, `${fontFamily} font`),
+    download(asset.licenseUrl, `${fontFamily} license`),
+  ]);
+  await saveAndRegisterFont(
+    localAppData,
+    fontFamily,
+    asset.fileName,
+    asset.licenseFileName,
+    fontData,
+    licenseData,
+  );
+}
+
+export async function installNerdFont(): Promise<void> {
+  assertWindows();
+  if (isFontInstalled(NERD_FONT_FAMILY)) return;
+
+  const localAppData = process.env.LOCALAPPDATA;
+  if (!localAppData) {
+    throw new Error("LOCALAPPDATA is not set; the font cannot be installed.");
+  }
+
+  const archiveData = await download(nerdFontArchive.url, "Hack Nerd Font archive");
+  const actualHash = createHash("sha256").update(archiveData).digest("hex");
+  if (actualHash !== nerdFontArchive.sha256) {
+    throw new Error("The downloaded Hack Nerd Font archive failed its SHA-256 check.");
+  }
+
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "pimpt-nerd-font-"));
+  const archivePath = resolve(temporaryDirectory, nerdFontArchive.fileName);
+  try {
+    await writeFile(archivePath, archiveData);
+    let fontData: Buffer;
+    let licenseData: Buffer;
+    try {
+      fontData = execFileSync(
+        "tar.exe",
+        ["-xOf", archivePath, nerdFontArchive.fontEntry],
+        { maxBuffer: 10_000_000, windowsHide: true },
+      );
+      licenseData = execFileSync(
+        "tar.exe",
+        ["-xOf", archivePath, nerdFontArchive.licenseEntry],
+        { maxBuffer: 1_000_000, windowsHide: true },
+      );
+    } catch (error) {
+      throw new Error("Could not extract Hack Nerd Font from its archive.", {
+        cause: error,
+      });
+    }
+
+    await saveAndRegisterFont(
+      localAppData,
+      NERD_FONT_FAMILY,
+      "pimpt-hack-nerd-font-v3.5.1.ttf",
+      "pimpt-hack-nerd-font-LICENSE.md",
+      fontData,
+      licenseData,
+    );
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
 }

@@ -377,6 +377,19 @@ export const settings: SettingDefinition[] = [
     summarize: onOff,
   },
   {
+    id: "terminalIcons",
+    group: "Behavior",
+    label: "PowerShell file icons",
+    hint: "Show file and folder icons in Windows PowerShell",
+    prompt: {
+      kind: "confirm",
+      message:
+        "Enable PowerShell file icons? This installs Terminal-Icons and Hack Nerd Font Mono if needed, adds it to your PowerShell profile, and switches Windows Terminal to that font.",
+      initialValue: true,
+    },
+    summarize: onOff,
+  },
+  {
     id: "focusFollowMouse",
     group: "Behavior",
     label: "Focus follows mouse",
