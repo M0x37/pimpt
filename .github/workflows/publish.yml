@@ -32,7 +32,28 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Publish package
-        run: npm publish --access public --tag latest
+      - name: Build
+        run: npm run build
+
+      - name: Publish package or update latest tag
+        shell: bash
+        run: |
+          package_name="$(node -p 'require("./package.json").name')"
+          package_version="$(node -p 'require("./package.json").version')"
+
+          set +e
+          registry_output="$(npm view "${package_name}@${package_version}" version 2>&1)"
+          registry_status=$?
+          set -e
+
+          if [ "$registry_status" -eq 0 ]; then
+            echo "::notice::${package_name}@${package_version} is already published; updating the latest tag."
+            npm dist-tag add "${package_name}@${package_version}" latest
+          elif [[ "$registry_output" == *"E404"* ]]; then
+            npm publish --access public --tag latest
+          else
+            printf '%s\n' "$registry_output" >&2
+            exit "$registry_status"
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -86,8 +86,9 @@ npm run build
 
 Publishing is available manually from the GitHub Actions tab using the
 `Publish to npm` workflow. It checks out the latest commit on `main`, runs the
-typecheck and tests, then publishes the version in `package.json` with the
-`latest` npm tag. The publish step builds the package automatically.
+typecheck, tests, and build, then publishes the version in `package.json` with
+the `latest` npm tag. If that version is already published, it updates the
+`latest` tag instead of trying to upload the version again.
 
 Before running it, add an npm access token with publish permission as the
 repository Actions secret `NPM_TOKEN`. Update the package version in
