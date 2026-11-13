@@ -1,6 +1,19 @@
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { parse } from "jsonc-parser";
 import { describe, expect, it } from "vitest";
-import { setSetting } from "../src/wtsettings";
+import {
+  createSettingsBackup,
+  listSettingsBackups,
+  restoreSettingsBackup,
+  setSetting,
+} from "../src/wtsettings";
 
 describe("setSetting", () => {
   const originalContent = `{
@@ -57,5 +70,57 @@ describe("setSetting", () => {
     ).toThrow(
       "Windows Terminal settings.json is invalid JSONC. No changes were written.",
     );
+  });
+});
+
+describe("settings backups", () => {
+  it("creates and lists a backup of the current settings", () => {
+    const directory = mkdtempSync(join(tmpdir(), "pimpt-settings-"));
+    try {
+      const settingsPath = join(directory, "settings.json");
+      writeFileSync(settingsPath, '{"profiles":{}}', "utf8");
+
+      const backupPath = createSettingsBackup(settingsPath);
+      const backups = listSettingsBackups(settingsPath);
+
+      expect(readFileSync(backupPath, "utf8")).toBe('{"profiles":{}}');
+      expect(backups.map((backup) => backup.path)).toContain(backupPath);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("restores a valid backup while backing up the current settings", () => {
+    const directory = mkdtempSync(join(tmpdir(), "pimpt-settings-"));
+    try {
+      const settingsPath = join(directory, "settings.json");
+      writeFileSync(settingsPath, '{"new":true}', "utf8");
+      const backupPath = createSettingsBackup(settingsPath);
+      writeFileSync(settingsPath, '{"current":true}', "utf8");
+
+      const safetyBackupPath = restoreSettingsBackup(settingsPath, backupPath);
+
+      expect(readFileSync(settingsPath, "utf8")).toBe('{"new":true}');
+      expect(readFileSync(safetyBackupPath, "utf8")).toBe('{"current":true}');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not restore an invalid backup", () => {
+    const directory = mkdtempSync(join(tmpdir(), "pimpt-settings-"));
+    try {
+      const settingsPath = join(directory, "settings.json");
+      writeFileSync(settingsPath, '{"current":true}', "utf8");
+      const backupPath = createSettingsBackup(settingsPath);
+      writeFileSync(backupPath, "invalid", "utf8");
+
+      expect(() => restoreSettingsBackup(settingsPath, backupPath)).toThrow(
+        "The selected backup is invalid JSONC",
+      );
+      expect(readFileSync(settingsPath, "utf8")).toBe('{"current":true}');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
