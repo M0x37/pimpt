@@ -29,8 +29,10 @@ import {
 } from "./fonts.js";
 import {
   addTerminalIconsToPowerShellProfile,
+  addHistoryPreviewToPowerShellProfile,
+  installPSReadLineModule,
   installTerminalIconsModule,
-} from "./icons.js";
+} from "./powershell.js";
 import { buildSummarySections, normalizeHex } from "./summary.js";
 import {
   findSettingsPath,
@@ -346,7 +348,8 @@ export async function runInstaller(): Promise<void> {
   const selectableSettings = settings.filter(
     (setting) =>
       (setting.group === "Appearance" && setting.jsonPath !== undefined) ||
-      setting.id === "terminalIcons",
+      setting.id === "terminalIcons" ||
+      setting.id === "historyPreview",
   );
   const answers: Record<string, SettingValue> = {};
   let initialPickerValue = selectableSettings[0]?.id;
@@ -422,14 +425,18 @@ export async function runInstaller(): Promise<void> {
   s.message("Checking compatibility…");
   await delay(300);
   s.message(
-    answers.terminalIcons === true
-      ? "Installing PowerShell file icons…"
+    answers.terminalIcons === true || answers.historyPreview === true
+      ? "Installing PowerShell features…"
       : "Writing settings.json…",
   );
   await delay(400);
 
   try {
     await applySettings(answers);
+    if (answers.historyPreview === true) {
+      installPSReadLineModule();
+      addHistoryPreviewToPowerShellProfile();
+    }
   } catch (error) {
     if (!(error instanceof InvalidSettingsFileError)) throw error;
 
@@ -442,7 +449,9 @@ export async function runInstaller(): Promise<void> {
 
   const fontSelected =
     answers.fontFace !== undefined && answers.fontFace !== "keep";
-  if (fontSelected) openNewTerminalTab();
+  const powerShellFeatureSelected =
+    answers.terminalIcons === true || answers.historyPreview === true;
+  if (fontSelected || powerShellFeatureSelected) openNewTerminalTab();
   outro(
     [
       `${pc.green("✓")} Your configuration is ready.`,

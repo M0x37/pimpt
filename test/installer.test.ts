@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => {
     installNerdFont: vi.fn(),
     installTerminalIconsModule: vi.fn(),
     addTerminalIconsToPowerShellProfile: vi.fn(),
+    installPSReadLineModule: vi.fn(),
+    addHistoryPreviewToPowerShellProfile: vi.fn(),
     spawn: vi.fn(() => ({ on: vi.fn(), unref: vi.fn() })),
     select: vi.fn(),
     text: vi.fn(),
@@ -64,9 +66,11 @@ vi.mock("../src/fonts", () => ({
   NERD_FONT_FAMILY: "Hack Nerd Font Mono",
 }));
 
-vi.mock("../src/icons", () => ({
+vi.mock("../src/powershell", () => ({
   installTerminalIconsModule: mocks.installTerminalIconsModule,
   addTerminalIconsToPowerShellProfile: mocks.addTerminalIconsToPowerShellProfile,
+  installPSReadLineModule: mocks.installPSReadLineModule,
+  addHistoryPreviewToPowerShellProfile: mocks.addHistoryPreviewToPowerShellProfile,
 }));
 
 vi.mock("../src/wtsettings", () => ({
@@ -169,6 +173,11 @@ describe("runInstaller", () => {
         value: "terminalIcons",
         label: "PowerShell file icons",
         hint: "Show file and folder icons in Windows PowerShell",
+      },
+      {
+        value: "historyPreview",
+        label: "Command history preview",
+        hint: "Browse several recent PowerShell commands in a scrollable list",
       },
     ]);
     expect(options.initialValue).toBe("transparency");
@@ -385,6 +394,33 @@ describe("runInstaller", () => {
     expect(mocks.installTerminalIconsModule).not.toHaveBeenCalled();
     expect(mocks.addTerminalIconsToPowerShellProfile).not.toHaveBeenCalled();
     expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("enables a scrollable PowerShell command history preview", async () => {
+    selectResponses("historyPreview", "done");
+    mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining("Up and Down arrows"),
+    });
+    expect(summaryText()).toContain("Command history preview");
+    expect(summaryText()).toContain("Tools");
+    expect(mocks.installPSReadLineModule).toHaveBeenCalledOnce();
+    expect(mocks.addHistoryPreviewToPowerShellProfile).toHaveBeenCalledOnce();
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("does not install the history preview when the user declines", async () => {
+    selectResponses("historyPreview", "done");
+    mocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.installPSReadLineModule).not.toHaveBeenCalled();
+    expect(mocks.addHistoryPreviewToPowerShellProfile).not.toHaveBeenCalled();
   });
 
   it("does not install icons when Windows Terminal settings are invalid", async () => {

@@ -5,7 +5,8 @@ export type SettingGroup =
   | "Colors"
   | "Window & tabs"
   | "Profile"
-  | "Behavior";
+  | "Behavior"
+  | "Tools";
 
 export interface Choice {
   value: string;
@@ -390,6 +391,19 @@ export const settings: SettingDefinition[] = [
     summarize: onOff,
   },
   {
+    id: "historyPreview",
+    group: "Tools",
+    label: "Command history preview",
+    hint: "Browse several recent PowerShell commands in a scrollable list",
+    prompt: {
+      kind: "confirm",
+      message:
+        "Enable a scrollable PowerShell history list? This installs PSReadLine if needed and lets the Up and Down arrows browse the visible history suggestions.",
+      initialValue: true,
+    },
+    summarize: onOff,
+  },
+  {
     id: "focusFollowMouse",
     group: "Behavior",
     label: "Focus follows mouse",
@@ -421,6 +435,7 @@ export const groupOrder: SettingGroup[] = [
   "Window & tabs",
   "Profile",
   "Behavior",
+  "Tools",
 ];
 
 export function buildGroupedOptions(): Record<string, Choice[]> {
