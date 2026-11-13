@@ -12,6 +12,7 @@ import {
 } from "@clack/prompts";
 import pc from "picocolors";
 import { setTimeout as delay } from "node:timers/promises";
+import { buildSummaryRows, normalizeHex } from "./summary.js";
 import type {
   AcrylicChoice,
   BackgroundChoice,
@@ -80,26 +81,8 @@ function bail<T>(value: T): Exclude<T, symbol> {
   return value as Exclude<T, symbol>;
 }
 
-function normalizeHex(value: string): string {
-  const hex = value.trim().replace(/^#?/, "#");
-  return hex.toUpperCase();
-}
-
 function renderSummary(choices: InstallerChoices): void {
-  const rows: [string, string][] = [];
-
-  if (choices.acrylic) {
-    rows.push(["Transparency", `Acrylic at ${choices.acrylic.opacity}% opacity`]);
-  }
-  if (choices.background) {
-    rows.push([
-      "Background",
-      `${choices.background.name} (${choices.background.hex})`,
-    ]);
-  }
-  if (choices.icon) {
-    rows.push(["Icon", `${choices.icon.label} (${choices.icon.value})`]);
-  }
+  const rows = buildSummaryRows(choices);
 
   if (rows.length === 0) {
     note("No appearance options selected.", "Configuration summary");
