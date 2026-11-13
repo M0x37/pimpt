@@ -84,6 +84,9 @@ const fontOptions: Choice[] = [
   { value: "Consolas", label: "Consolas", hint: "Classic Windows font" },
   { value: "JetBrains Mono", label: "JetBrains Mono", hint: "Popular developer font" },
   { value: "Fira Code", label: "Fira Code", hint: "Monospace with ligatures" },
+  { value: "Hack", label: "Hack", hint: "Designed for source code" },
+  { value: "Source Code Pro", label: "Source Code Pro", hint: "Adobe's monospace font" },
+  { value: "IBM Plex Mono", label: "IBM Plex Mono", hint: "Technical, readable monospace" },
 ];
 
 const fontSizeOptions: Choice[] = ["10", "11", "12", "14", "16", "18"].map(
@@ -208,7 +211,7 @@ export const settings: SettingDefinition[] = [
     id: "fontFace",
     group: "Appearance",
     label: "Font",
-    hint: "Typeface used in the terminal",
+    hint: "Typeface used in Windows Terminal",
     prompt: {
       kind: "select",
       message: "Choose a font",
@@ -216,6 +219,8 @@ export const settings: SettingDefinition[] = [
       initialValue: "keep",
     },
     summarize: (value) => labelOf(fontOptions, String(value)),
+    jsonPath: ["profiles", "defaults", "font", "face"],
+    skipIfKeep: true,
   },
   {
     id: "fontSize",

@@ -10,6 +10,8 @@ import {
   spinner,
   text,
 } from "@clack/prompts";
+import { spawn } from "node:child_process";
+import { parse } from "jsonc-parser";
 import pc from "picocolors";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -18,6 +20,7 @@ import {
   type SettingDefinition,
   type SettingValue,
 } from "./settings.js";
+import { canInstallFont, installFont, isFontInstalled } from "./fonts.js";
 import { buildSummarySections, normalizeHex } from "./summary.js";
 import {
   findSettingsPath,
@@ -48,13 +51,55 @@ async function askSetting(setting: SettingDefinition): Promise<SettingValue> {
   const prompt = setting.prompt;
 
   if (prompt.kind === "select") {
-    const value = bail(
-      await select<string>({
-        message: prompt.message,
-        options: prompt.options,
-        initialValue: prompt.initialValue,
-      }),
-    );
+    const selectValue = async () =>
+      bail(
+        await select<string>({
+          message: prompt.message,
+          options: prompt.options,
+          initialValue: prompt.initialValue,
+        }),
+      );
+
+    if (setting.id === "fontFace") {
+      while (true) {
+        const fontFamily = await selectValue();
+        if (fontFamily === "keep" || isFontInstalled(fontFamily)) {
+          return fontFamily;
+        }
+
+        if (!canInstallFont(fontFamily)) {
+          log.warn(
+            pc.yellow(
+              `${fontFamily} is not installed and cannot be installed automatically. Choose another font.`,
+            ),
+          );
+          continue;
+        }
+
+        const shouldInstall = bail(
+          await confirm({
+            message: `${fontFamily} is not installed. Install it now? Select No to choose another font.`,
+            initialValue: true,
+          }),
+        );
+        if (!shouldInstall) continue;
+
+        const fontSpinner = spinner();
+        fontSpinner.start(`Installing ${fontFamily}…`);
+        try {
+          await installFont(fontFamily);
+        } catch (error) {
+          fontSpinner.error(`Could not install ${fontFamily}.`);
+          throw error;
+        }
+        fontSpinner.stop(
+          `${fontFamily} installed. Restart Windows Terminal to use it.`,
+        );
+        return fontFamily;
+      }
+    }
+
+    const value = await selectValue();
 
     // Hintergrundfarbe: bei "Custom" folgt eine Hex-Eingabe mit Validierung.
     if (setting.id === "background" && value === BACKGROUND_CUSTOM) {
@@ -124,10 +169,57 @@ function renderSummary(answers: Record<string, SettingValue>): void {
   note(lines.join("\n"), "Your configuration");
 }
 
+function openNewTerminalTab(): boolean {
+  if (!process.env.WT_SESSION) return false;
+
+  try {
+    const terminal = spawn("wt.exe", ["-w", "0", "new-tab"], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    terminal.on("error", (error) => {
+      log.warn(
+        pc.yellow(`Could not open a new Windows Terminal tab: ${error.message}`),
+      );
+    });
+    terminal.unref();
+    return true;
+  } catch (error) {
+    log.warn(
+      pc.yellow(`Could not open a new Windows Terminal tab: ${String(error)}`),
+    );
+    return false;
+  }
+}
+
+function getDefaultProfileIndex(content: string): number | undefined {
+  const parsed = parse(content) as {
+    defaultProfile?: unknown;
+    profiles?: { list?: unknown };
+  };
+  if (
+    typeof parsed.defaultProfile !== "string" ||
+    !parsed.profiles ||
+    typeof parsed.profiles !== "object" ||
+    !Array.isArray(parsed.profiles.list)
+  ) {
+    return undefined;
+  }
+
+  const index = parsed.profiles.list.findIndex(
+    (profile: unknown) =>
+      profile !== null &&
+      typeof profile === "object" &&
+      "guid" in profile &&
+      profile.guid === parsed.defaultProfile,
+  );
+  return index < 0 ? undefined : index;
+}
+
 /**
- * Schreibt die gesammelten Antworten in die Windows Terminal settings.json.
- * Nur Settings mit einem `jsonPath` und einem nicht-"keep"-Wert werden
- * geschrieben. Kommentare und Formatierung der Datei werden erhalten.
+ * Schreibt die Antworten in verfügbare Terminal-Einstellungen. Kommentare und
+ * Formatierung der JSONC-Dateien werden erhalten.
  */
 async function applySettings(
   answers: Record<string, SettingValue>,
@@ -145,7 +237,6 @@ async function applySettings(
 
   let content = readSettingsFile(settingsPath);
   let dirty = false;
-
   for (const setting of settings) {
     const value = answers[setting.id];
     if (value === undefined) continue;
@@ -176,6 +267,16 @@ async function applySettings(
         ["profiles", "defaults", "tabColor"],
         value,
       );
+    } else if (setting.id === "fontFace") {
+      const defaultProfileIndex = getDefaultProfileIndex(content);
+      content = setSetting(content, setting.jsonPath, value);
+      if (defaultProfileIndex !== undefined) {
+        content = setSetting(
+          content,
+          ["profiles", "list", defaultProfileIndex, "font", "face"],
+          value,
+        );
+      }
     } else {
       content = setSetting(content, setting.jsonPath, value);
     }
@@ -282,10 +383,13 @@ export async function runInstaller(): Promise<void> {
 
   s.stop("Settings written to settings.json.");
 
+  const fontSelected =
+    answers.fontFace !== undefined && answers.fontFace !== "keep";
+  if (fontSelected) openNewTerminalTab();
   outro(
     [
       `${pc.green("✓")} Your configuration is ready.`,
-      pc.dim("Background color has been written to settings.json."),
+      pc.dim("Your settings are stored in settings.json."),
     ].join("\n"),
   );
 }
