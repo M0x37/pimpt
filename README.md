@@ -82,6 +82,18 @@ npm run typecheck
 npm run build
 ```
 
+## Publishing
+
+Publishing is available manually from the GitHub Actions tab using the
+`Publish to npm` workflow. It checks out the latest commit on `main`, runs the
+typecheck and tests, then publishes the version in `package.json` with the
+`latest` npm tag. The publish step builds the package automatically.
+
+Before running it, add an npm access token with publish permission as the
+repository Actions secret `NPM_TOKEN`. Update the package version in
+`package.json` and `package-lock.json` and push the changes to `main` first.
+Published versions cannot be overwritten, so each publish needs a new version.
+
 ## License
 
 ISC, as declared in the package metadata.
