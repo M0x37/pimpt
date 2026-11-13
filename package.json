@@ -1,5 +1,5 @@
 {
-  "name": "pimpt",
+  "name": "@m0x373/pimpt",
   "version": "0.1.0",
   "description": "Interactive setup assistant for Windows Terminal",
   "type": "module",
