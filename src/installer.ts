@@ -123,12 +123,10 @@ export async function runInstaller(): Promise<void> {
   console.log(pc.cyan(BANNER));
   intro(pc.bold("Let's make your terminal yours."));
 
-  note(
-    [
-      "This is a preview of the installer.",
-      "Your choices are collected and summarized, but settings.json is not modified yet.",
-    ].join("\n"),
-    "Preview mode",
+  log.info(
+    pc.dim(
+      "Preview only — settings.json is not modified yet. Use ↑/↓ to move, Space to toggle, Enter to continue.",
+    ),
   );
 
   const selected = bail(
@@ -137,8 +135,15 @@ export async function runInstaller(): Promise<void> {
       options: buildGroupedOptions(),
       initialValues: ["transparency", "background", "icon"],
       required: true,
-      selectableGroups: true,
-      groupSpacing: 1,
+      // Group headers are plain labels. Making them selectable turns Space
+      // into a "select/deselect whole group" toggle, which traps users who
+      // expect a collapsible section.
+      selectableGroups: false,
+      // Keep the prompt shorter than the viewport. `groupSpacing` must stay
+      // at 0: Clack's limitOptions counts one line per option, so blank
+      // spacer lines make it trim the focused row and group headers (see
+      // bombshell-dev/clack#528).
+      maxItems: 8,
     }),
   );
 

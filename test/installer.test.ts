@@ -71,6 +71,28 @@ beforeEach(() => {
 });
 
 describe("runInstaller", () => {
+  it("keeps the picker compact and free of spacer lines", async () => {
+    mocks.groupMultiselect.mockResolvedValue(["transparency"]);
+    mocks.select.mockResolvedValue("80");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    const options = mocks.groupMultiselect.mock.calls[0]?.[0] as {
+      maxItems?: number;
+      groupSpacing?: number;
+      selectableGroups?: boolean;
+    };
+
+    // Clack's limitOptions counts one line per option. Spacer lines make it
+    // trim the focused row and group headers, which breaks scrolling and
+    // selection (bombshell-dev/clack#528).
+    expect(options.groupSpacing).toBeUndefined();
+    expect(options.maxItems).toBe(8);
+    // Group headers must not act as "close the whole group" toggles.
+    expect(options.selectableGroups).toBe(false);
+  });
+
   it("asks only the selected settings and renders a grouped summary", async () => {
     mocks.groupMultiselect.mockResolvedValue(["transparency", "background"]);
     mocks.select.mockResolvedValueOnce("80").mockResolvedValueOnce("#2E3440");
