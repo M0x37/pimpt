@@ -16,6 +16,11 @@ const mocks = vi.hoisted(() => {
     isFontInstalled: vi.fn(),
     canInstallFont: vi.fn(),
     installFont: vi.fn(),
+    installNerdFont: vi.fn(),
+    installTerminalIconsModule: vi.fn(),
+    addTerminalIconsToPowerShellProfile: vi.fn(),
+    installPSReadLineModule: vi.fn(),
+    addHistoryPreviewToPowerShellProfile: vi.fn(),
     spawn: vi.fn(() => ({ on: vi.fn(), unref: vi.fn() })),
     select: vi.fn(),
     text: vi.fn(),
@@ -57,6 +62,15 @@ vi.mock("../src/fonts", () => ({
   isFontInstalled: mocks.isFontInstalled,
   canInstallFont: mocks.canInstallFont,
   installFont: mocks.installFont,
+  installNerdFont: mocks.installNerdFont,
+  NERD_FONT_FAMILY: "Hack Nerd Font Mono",
+}));
+
+vi.mock("../src/powershell", () => ({
+  installTerminalIconsModule: mocks.installTerminalIconsModule,
+  addTerminalIconsToPowerShellProfile: mocks.addTerminalIconsToPowerShellProfile,
+  installPSReadLineModule: mocks.installPSReadLineModule,
+  addHistoryPreviewToPowerShellProfile: mocks.addHistoryPreviewToPowerShellProfile,
 }));
 
 vi.mock("../src/wtsettings", () => ({
@@ -127,6 +141,7 @@ beforeEach(() => {
   vi.mocked(isFontInstalled).mockReturnValue(true);
   vi.mocked(canInstallFont).mockReturnValue(true);
   vi.mocked(installFont).mockResolvedValue(undefined);
+  mocks.installNerdFont.mockResolvedValue(undefined);
   writeSettingsFile.mockImplementation(() => undefined);
 });
 
@@ -153,6 +168,16 @@ describe("runInstaller", () => {
         value: "fontFace",
         label: "Font",
         hint: "Typeface used in Windows Terminal",
+      },
+      {
+        value: "terminalIcons",
+        label: "PowerShell file icons",
+        hint: "Show file and folder icons in Windows PowerShell",
+      },
+      {
+        value: "historyPreview",
+        label: "Command history preview",
+        hint: "Browse several recent PowerShell commands in a scrollable list",
       },
     ]);
     expect(options.initialValue).toBe("transparency");
@@ -298,6 +323,125 @@ describe("runInstaller", () => {
 
     expect(setSetting).not.toHaveBeenCalled();
     expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("installs PowerShell file icons and selects the required Nerd Font", async () => {
+    readSettingsFile.mockReturnValue(`{
+      "defaultProfile": "powershell",
+      "profiles": {
+        "defaults": {},
+        "list": [
+          { "guid": "powershell", "name": "Windows PowerShell" }
+        ]
+      }
+    }`);
+    selectResponses("terminalIcons", "done");
+    mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining(
+        "installs Terminal-Icons and Hack Nerd Font Mono if needed",
+      ),
+    });
+    expect(summaryText()).toContain("Hack Nerd Font Mono");
+    expect(mocks.installNerdFont).toHaveBeenCalledOnce();
+    expect(mocks.installTerminalIconsModule).toHaveBeenCalledOnce();
+    expect(setSetting).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      ["profiles", "defaults", "font", "face"],
+      "Hack Nerd Font Mono",
+    );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      2,
+      '{"modified": true}',
+      ["profiles", "list", 0, "font", "face"],
+      "Hack Nerd Font Mono",
+    );
+    expect(writeSettingsFile).toHaveBeenCalledOnce();
+    expect(mocks.addTerminalIconsToPowerShellProfile).toHaveBeenCalledOnce();
+  });
+
+  it("reports the Nerd Font when icons replace a previously selected font", async () => {
+    selectResponses("fontFace", "Cascadia Code", "terminalIcons", "done");
+    mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(summaryText()).not.toContain("Cascadia Code");
+    expect(summaryText()).toContain("Hack Nerd Font Mono");
+    expect(setSetting).toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "defaults", "font", "face"],
+      "Hack Nerd Font Mono",
+    );
+    expect(setSetting).not.toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "defaults", "font", "face"],
+      "Cascadia Code",
+    );
+  });
+
+  it("does not install icons when the user declines", async () => {
+    selectResponses("terminalIcons", "done");
+    mocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.installNerdFont).not.toHaveBeenCalled();
+    expect(mocks.installTerminalIconsModule).not.toHaveBeenCalled();
+    expect(mocks.addTerminalIconsToPowerShellProfile).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("enables a scrollable PowerShell command history preview", async () => {
+    selectResponses("historyPreview", "done");
+    mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining("Up and Down arrows"),
+    });
+    expect(summaryText()).toContain("Command history preview");
+    expect(summaryText()).toContain("Tools");
+    expect(mocks.installPSReadLineModule).toHaveBeenCalledOnce();
+    expect(mocks.addHistoryPreviewToPowerShellProfile).toHaveBeenCalledOnce();
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(writeSettingsFile).not.toHaveBeenCalled();
+  });
+
+  it("does not install the history preview when the user declines", async () => {
+    selectResponses("historyPreview", "done");
+    mocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.installPSReadLineModule).not.toHaveBeenCalled();
+    expect(mocks.addHistoryPreviewToPowerShellProfile).not.toHaveBeenCalled();
+  });
+
+  it("does not install icons when Windows Terminal settings are invalid", async () => {
+    const originalExitCode = process.exitCode;
+    selectResponses("terminalIcons", "done");
+    mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+    setSetting.mockImplementation(() => {
+      throw new InvalidSettingsFileError("Invalid JSONC.");
+    });
+
+    try {
+      await runInstaller();
+
+      expect(mocks.installNerdFont).not.toHaveBeenCalled();
+      expect(mocks.installTerminalIconsModule).not.toHaveBeenCalled();
+      expect(mocks.addTerminalIconsToPowerShellProfile).not.toHaveBeenCalled();
+      expect(writeSettingsFile).not.toHaveBeenCalled();
+      expect(spinner.error).toHaveBeenCalledWith("Invalid JSONC.");
+    } finally {
+      process.exitCode = originalExitCode;
+    }
   });
 
   it("asks before installing a missing font", async () => {

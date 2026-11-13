@@ -20,7 +20,19 @@ import {
   type SettingDefinition,
   type SettingValue,
 } from "./settings.js";
-import { canInstallFont, installFont, isFontInstalled } from "./fonts.js";
+import {
+  canInstallFont,
+  installFont,
+  installNerdFont,
+  isFontInstalled,
+  NERD_FONT_FAMILY,
+} from "./fonts.js";
+import {
+  addTerminalIconsToPowerShellProfile,
+  addHistoryPreviewToPowerShellProfile,
+  installPSReadLineModule,
+  installTerminalIconsModule,
+} from "./powershell.js";
 import { buildSummarySections, normalizeHex } from "./summary.js";
 import {
   findSettingsPath,
@@ -224,9 +236,15 @@ function getDefaultProfileIndex(content: string): number | undefined {
 async function applySettings(
   answers: Record<string, SettingValue>,
 ): Promise<void> {
+  const terminalIconsEnabled = answers.terminalIcons === true;
   const settingsPath = findSettingsPath();
 
   if (!settingsPath) {
+    if (terminalIconsEnabled) {
+      throw new Error(
+        "Cannot enable PowerShell file icons because Windows Terminal settings.json could not be found.",
+      );
+    }
     log.warn(
       pc.dim("Could not find Windows Terminal settings.json. Skipping write."),
     );
@@ -242,6 +260,7 @@ async function applySettings(
     if (value === undefined) continue;
     if (!setting.jsonPath) continue;
     if (setting.skipIfKeep && value === "keep") continue;
+    if (terminalIconsEnabled && setting.id === "fontFace") continue;
 
     if (setting.id === "transparency") {
       const opacity = value === "off" ? 100 : Number(value);
@@ -283,8 +302,34 @@ async function applySettings(
     dirty = true;
   }
 
+  if (terminalIconsEnabled) {
+    const defaultProfileIndex = getDefaultProfileIndex(content);
+    content = setSetting(
+      content,
+      ["profiles", "defaults", "font", "face"],
+      NERD_FONT_FAMILY,
+    );
+    if (defaultProfileIndex !== undefined) {
+      content = setSetting(
+        content,
+        ["profiles", "list", defaultProfileIndex, "font", "face"],
+        NERD_FONT_FAMILY,
+      );
+    }
+    dirty = true;
+  }
+
+  if (terminalIconsEnabled) {
+    await installNerdFont();
+    installTerminalIconsModule();
+  }
+
   if (dirty) {
     writeSettingsFile(settingsPath, content);
+  }
+
+  if (terminalIconsEnabled) {
+    addTerminalIconsToPowerShellProfile();
   }
 }
 
@@ -300,14 +345,21 @@ export async function runInstaller(): Promise<void> {
     "Preview mode",
   );
 
-  const appearanceSettings = settings.filter(
-    (setting) => setting.group === "Appearance" && setting.jsonPath,
+  const selectableSettings = settings.filter(
+    (setting) =>
+      (setting.group === "Appearance" && setting.jsonPath !== undefined) ||
+      setting.id === "terminalIcons" ||
+      setting.id === "historyPreview",
   );
   const answers: Record<string, SettingValue> = {};
-  let initialPickerValue = appearanceSettings[0]?.id;
+  let initialPickerValue = selectableSettings[0]?.id;
 
   while (true) {
-    const options = appearanceSettings.map((setting) => ({
+    const visibleSettings = selectableSettings.filter(
+      (setting) =>
+        !(answers.terminalIcons === true && setting.id === "fontFace"),
+    );
+    const options = visibleSettings.map((setting) => ({
       value: setting.id,
       label:
         answers[setting.id] === undefined
@@ -325,7 +377,7 @@ export async function runInstaller(): Promise<void> {
 
     const firstOption = options[0];
     if (!firstOption) {
-      throw new Error("No appearance settings are available.");
+      throw new Error("No settings are available.");
     }
 
     const selectedId = bail(
@@ -337,7 +389,7 @@ export async function runInstaller(): Promise<void> {
     );
     if (selectedId === "done") break;
 
-    const setting = appearanceSettings.find(
+    const setting = selectableSettings.find(
       (candidate) => candidate.id === selectedId,
     );
     if (!setting) {
@@ -347,6 +399,10 @@ export async function runInstaller(): Promise<void> {
     initialPickerValue = selectedId;
     log.step(pc.bold(pc.cyan(setting.group)));
     answers[setting.id] = await askSetting(setting);
+    if (setting.id === "terminalIcons" && answers.terminalIcons === true) {
+      answers.fontFace = NERD_FONT_FAMILY;
+      initialPickerValue = "terminalIcons";
+    }
   }
 
   renderSummary(answers);
@@ -368,11 +424,19 @@ export async function runInstaller(): Promise<void> {
   await delay(300);
   s.message("Checking compatibility…");
   await delay(300);
-  s.message("Writing settings.json…");
+  s.message(
+    answers.terminalIcons === true || answers.historyPreview === true
+      ? "Installing PowerShell features…"
+      : "Writing settings.json…",
+  );
   await delay(400);
 
   try {
     await applySettings(answers);
+    if (answers.historyPreview === true) {
+      installPSReadLineModule();
+      addHistoryPreviewToPowerShellProfile();
+    }
   } catch (error) {
     if (!(error instanceof InvalidSettingsFileError)) throw error;
 
@@ -385,7 +449,9 @@ export async function runInstaller(): Promise<void> {
 
   const fontSelected =
     answers.fontFace !== undefined && answers.fontFace !== "keep";
-  if (fontSelected) openNewTerminalTab();
+  const powerShellFeatureSelected =
+    answers.terminalIcons === true || answers.historyPreview === true;
+  if (fontSelected || powerShellFeatureSelected) openNewTerminalTab();
   outro(
     [
       `${pc.green("✓")} Your configuration is ready.`,
