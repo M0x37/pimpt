@@ -1,9 +1,10 @@
 import {
   cancel,
   confirm,
+  groupMultiselect,
   intro,
   isCancel,
-  multiselect,
+  log,
   note,
   outro,
   select,
@@ -12,66 +13,24 @@ import {
 } from "@clack/prompts";
 import pc from "picocolors";
 import { setTimeout as delay } from "node:timers/promises";
-import { buildSummaryRows, normalizeHex } from "./summary.js";
-import type {
-  AcrylicChoice,
-  BackgroundChoice,
-  Feature,
-  IconChoice,
-  InstallerChoices,
-} from "./types.js";
+import {
+  BACKGROUND_CUSTOM,
+  buildGroupedOptions,
+  settings,
+  type SettingDefinition,
+  type SettingGroup,
+  type SettingValue,
+} from "./settings.js";
+import { buildSummarySections, normalizeHex } from "./summary.js";
 
-interface ChoiceOption<T> {
-  value: T;
-  label: string;
-  hint: string;
-}
-
-const featureOptions: ChoiceOption<Feature>[] = [
-  { value: "acrylic", label: "Transparency", hint: "Acrylic blur and opacity" },
-  { value: "background", label: "Background color", hint: "Palette preset or custom hex" },
-  { value: "icon", label: "Profile icon", hint: "Choose an icon style" },
-];
-
-const opacityOptions: ChoiceOption<number>[] = [
-  { value: 90, label: "Subtle", hint: "90% opacity" },
-  { value: 80, label: "Balanced", hint: "80% opacity" },
-  { value: 70, label: "Frosted", hint: "70% opacity" },
-  { value: 50, label: "Heavy", hint: "50% opacity" },
-];
-
-const backgroundPresets = {
-  midnight: { name: "Midnight", hex: "#0B1021" },
-  nord: { name: "Nord", hex: "#2E3440" },
-  dracula: { name: "Dracula", hex: "#282A36" },
-  solarized: { name: "Solarized Dark", hex: "#002B36" },
-} satisfies Record<string, BackgroundChoice>;
-
-type BackgroundValue = keyof typeof backgroundPresets | "custom";
-
-const backgroundOptions: ChoiceOption<BackgroundValue>[] = [
-  ...(Object.keys(backgroundPresets) as (keyof typeof backgroundPresets)[]).map(
-    (value) => ({
-      value,
-      label: backgroundPresets[value].name,
-      hint: backgroundPresets[value].hex,
-    }),
-  ),
-  { value: "custom", label: "Custom hex", hint: "Enter your own color" },
-];
-
-const iconPresets = {
-  classic: { label: "Classic terminal", hint: "Monochrome prompt glyph" },
-  rocket: { label: "Rocket", hint: "Launch-ready" },
-  bolt: { label: "Bolt", hint: "Fast and loud" },
-  code: { label: "Code", hint: "Developer vibes" },
-} satisfies Record<string, { label: string; hint: string }>;
-
-type IconValue = keyof typeof iconPresets;
-
-const iconOptions: ChoiceOption<IconValue>[] = (
-  Object.keys(iconPresets) as IconValue[]
-).map((value) => ({ value, ...iconPresets[value] }));
+const BANNER = `
+   ██████╗ ██╗███╗   ███╗██████╗ ████████╗
+   ██╔══██╗██║████╗ ████║██╔══██╗╚══██╔══╝
+   ██████╔╝██║██╔████╔██║██████╔╝   ██║
+   ██╔═══╝ ██║██║╚██╔╝██║██╔═══╝    ██║
+   ██║     ██║██║ ╚═╝ ██║██║        ██║
+   ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝        ╚═╝
+`;
 
 function bail<T>(value: T): Exclude<T, symbol> {
   if (isCancel(value)) {
@@ -81,26 +40,88 @@ function bail<T>(value: T): Exclude<T, symbol> {
   return value as Exclude<T, symbol>;
 }
 
-function renderSummary(choices: InstallerChoices): void {
-  const rows = buildSummaryRows(choices);
+async function askSetting(setting: SettingDefinition): Promise<SettingValue> {
+  const prompt = setting.prompt;
 
-  if (rows.length === 0) {
-    note("No appearance options selected.", "Configuration summary");
+  if (prompt.kind === "select") {
+    const value = bail(
+      await select<string>({
+        message: prompt.message,
+        options: prompt.options,
+        initialValue: prompt.initialValue,
+      }),
+    );
+
+    if (setting.id === "background" && value === BACKGROUND_CUSTOM) {
+      const custom = bail(
+        await text({
+          message: "Enter a background color",
+          placeholder: "#1E1E2E",
+          initialValue: "",
+          validate: (input) => {
+            const raw = input ?? "";
+            return /^#?[0-9a-fA-F]{6}$/.test(raw.trim())
+              ? undefined
+              : "Use a 6-digit hex color, e.g. #1E1E2E";
+          },
+        }),
+      );
+      return normalizeHex(custom);
+    }
+
+    return value;
+  }
+
+  if (prompt.kind === "text") {
+    return bail(
+      await text({
+        message: prompt.message,
+        placeholder: prompt.placeholder,
+        initialValue: prompt.initialValue,
+        ...(prompt.validate ? { validate: prompt.validate } : {}),
+      }),
+    );
+  }
+
+  return bail(
+    await confirm({
+      message: prompt.message,
+      initialValue: prompt.initialValue,
+    }),
+  );
+}
+
+function renderSummary(answers: Record<string, SettingValue>): void {
+  const sections = buildSummarySections(answers);
+
+  if (sections.length === 0) {
+    note("No settings selected.", "Configuration summary");
     return;
   }
 
-  const width = Math.max(...rows.map(([label]) => label.length));
-  const lines = rows.map(
-    ([label, value]) => `${pc.cyan(label.padEnd(width))}  ${value}`,
+  const labelWidth = Math.max(
+    ...sections.flatMap((section) =>
+      section.rows.map(([label]) => label.length),
+    ),
   );
 
-  note(lines.join("\n"), "Configuration summary");
+  const lines: string[] = [];
+
+  sections.forEach((section, index) => {
+    if (index > 0) lines.push("");
+    lines.push(pc.bold(pc.cyan(section.group)));
+
+    for (const [label, value] of section.rows) {
+      lines.push(`  ${pc.dim(label.padEnd(labelWidth))}  ${value}`);
+    }
+  });
+
+  note(lines.join("\n"), "Your configuration");
 }
 
 export async function runInstaller(): Promise<void> {
-  intro(
-    `${pc.bold(pc.bgCyan(pc.black(" pimpt ")))} ${pc.dim("Windows Terminal setup assistant")}`,
-  );
+  console.log(pc.cyan(BANNER));
+  intro(pc.bold("Let's make your terminal yours."));
 
   note(
     [
@@ -110,72 +131,35 @@ export async function runInstaller(): Promise<void> {
     "Preview mode",
   );
 
-  const features = bail(
-    await multiselect<Feature>({
-      message: "What should pimpt personalize?",
-      options: featureOptions,
-      initialValues: ["acrylic", "background", "icon"],
+  const selected = bail(
+    await groupMultiselect<string>({
+      message: "What would you like to customize?",
+      options: buildGroupedOptions(),
+      initialValues: ["transparency", "background", "icon"],
       required: true,
+      selectableGroups: true,
+      groupSpacing: 1,
     }),
   );
 
-  let acrylic: AcrylicChoice | null = null;
-  let background: BackgroundChoice | null = null;
-  let icon: IconChoice | null = null;
+  const chosen = settings.filter((setting) => selected.includes(setting.id));
+  const answers: Record<string, SettingValue> = {};
+  let currentGroup: SettingGroup | null = null;
 
-  if (features.includes("acrylic")) {
-    const opacity = bail(
-      await select<number>({
-        message: "How strong should the acrylic effect be?",
-        options: opacityOptions,
-        initialValue: 80,
-      }),
-    );
-    acrylic = { opacity };
-  }
-
-  if (features.includes("background")) {
-    const selected = bail(
-      await select<BackgroundValue>({
-        message: "Choose a background color",
-        options: backgroundOptions,
-      }),
-    );
-
-    if (selected === "custom") {
-      const input = bail(
-        await text({
-          message: "Enter a hex color",
-          placeholder: "#1E1E2E",
-          validate: (value) => {
-            const input = value ?? "";
-            return /^#?[0-9a-fA-F]{6}$/.test(input.trim())
-              ? undefined
-              : "Use a 6-digit hex color, e.g. #1E1E2E";
-          },
-        }),
-      );
-      background = { name: "Custom", hex: normalizeHex(input) };
-    } else {
-      background = backgroundPresets[selected];
+  for (const setting of chosen) {
+    if (setting.group !== currentGroup) {
+      currentGroup = setting.group;
+      log.step(pc.bold(pc.cyan(setting.group)));
     }
+
+    answers[setting.id] = await askSetting(setting);
   }
 
-  if (features.includes("icon")) {
-    const value = bail(
-      await select<IconValue>({
-        message: "Pick a profile icon style",
-        options: iconOptions,
-      }),
-    );
-    icon = { value, label: iconPresets[value].label };
-  }
-
-  renderSummary({ features, acrylic, background, icon });
+  renderSummary(answers);
 
   const proceed = bail(
     await confirm({
-      message: "Run the preview installation?",
+      message: "Install these settings? (preview only)",
       initialValue: true,
     }),
   );
@@ -186,17 +170,17 @@ export async function runInstaller(): Promise<void> {
   }
 
   const s = spinner();
-  s.start("Preparing your configuration…");
-  await delay(350);
-  s.message("Checking preferences…");
-  await delay(350);
+  s.start("Building your configuration…");
+  await delay(300);
+  s.message("Checking compatibility…");
+  await delay(300);
   s.message("Simulating settings.json update…");
-  await delay(500);
+  await delay(400);
   s.stop("Preview complete — no files were changed.");
 
   outro(
     [
-      `${pc.green("✓")} pimpt is ready for the next step.`,
+      `${pc.green("✓")} Your configuration is ready.`,
       pc.dim("Real settings.json integration is not wired up yet."),
     ].join("\n"),
   );

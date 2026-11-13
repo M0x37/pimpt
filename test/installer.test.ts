@@ -9,11 +9,12 @@ const mocks = vi.hoisted(() => {
     note: vi.fn(),
     outro: vi.fn(),
     cancel: vi.fn(),
-    multiselect: vi.fn(),
+    groupMultiselect: vi.fn(),
     select: vi.fn(),
     text: vi.fn(),
     confirm: vi.fn(),
     spinner: vi.fn(),
+    logStep: vi.fn(),
     isCancel: vi.fn((value: unknown) => value === cancelSymbol),
   };
 });
@@ -23,11 +24,19 @@ vi.mock("@clack/prompts", () => ({
   note: mocks.note,
   outro: mocks.outro,
   cancel: mocks.cancel,
-  multiselect: mocks.multiselect,
+  groupMultiselect: mocks.groupMultiselect,
   select: mocks.select,
   text: mocks.text,
   confirm: mocks.confirm,
   spinner: mocks.spinner,
+  log: {
+    step: mocks.logStep,
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
   isCancel: mocks.isCancel,
 }));
 
@@ -48,43 +57,42 @@ const spinner = {
 };
 
 function summaryText(): string {
-  return mocks.note.mock.calls
-    .map(([message]) => String(message))
-    .find((message) => message.includes("Transparency") || message.includes("Background") || message.includes("Icon")) ?? "";
+  return (
+    mocks.note.mock.calls
+      .filter(([, title]) => title === "Your configuration")
+      .map(([message]) => String(message))[0] ?? ""
+  );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.spyOn(console, "log").mockImplementation(() => undefined);
   mocks.spinner.mockReturnValue(spinner);
 });
 
 describe("runInstaller", () => {
-  it("runs the full flow with all default choices", async () => {
-    mocks.multiselect.mockResolvedValue(["acrylic", "background", "icon"]);
-    mocks.select
-      .mockResolvedValueOnce(80)
-      .mockResolvedValueOnce("midnight")
-      .mockResolvedValueOnce("classic");
+  it("asks only the selected settings and renders a grouped summary", async () => {
+    mocks.groupMultiselect.mockResolvedValue(["transparency", "background"]);
+    mocks.select.mockResolvedValueOnce("80").mockResolvedValueOnce("#2E3440");
     mocks.confirm.mockResolvedValue(true);
 
     await runInstaller();
 
-    expect(mocks.intro).toHaveBeenCalledOnce();
-    expect(mocks.multiselect).toHaveBeenCalledOnce();
-    expect(mocks.select).toHaveBeenCalledTimes(3);
+    expect(mocks.groupMultiselect).toHaveBeenCalledOnce();
+    expect(mocks.select).toHaveBeenCalledTimes(2);
     expect(mocks.confirm).toHaveBeenCalledOnce();
 
-    expect(summaryText()).toContain("Acrylic at 80% opacity");
-    expect(summaryText()).toContain("Midnight (#0B1021)");
-    expect(summaryText()).toContain("Classic terminal (classic)");
+    expect(summaryText()).toContain("Appearance");
+    expect(summaryText()).toContain("Acrylic · 80% opacity");
+    expect(summaryText()).toContain("Nord (#2E3440)");
 
     expect(spinner.start).toHaveBeenCalledOnce();
     expect(spinner.stop).toHaveBeenCalledOnce();
     expect(mocks.outro).toHaveBeenCalledOnce();
   });
 
-  it("handles a custom background color", async () => {
-    mocks.multiselect.mockResolvedValue(["background"]);
+  it("asks for a custom background color and validates it", async () => {
+    mocks.groupMultiselect.mockResolvedValue(["background"]);
     mocks.select.mockResolvedValue("custom");
     mocks.text.mockResolvedValue("1e1e2e");
     mocks.confirm.mockResolvedValue(true);
@@ -102,9 +110,20 @@ describe("runInstaller", () => {
     expect(options.validate(undefined)).toContain("hex color");
   });
 
+  it("supports boolean settings", async () => {
+    mocks.groupMultiselect.mockResolvedValue(["copyOnSelect"]);
+    mocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await runInstaller();
+
+    expect(mocks.confirm).toHaveBeenCalledTimes(2);
+    expect(summaryText()).toContain("Copy on select");
+    expect(summaryText()).toContain("Disabled");
+  });
+
   it("stops when the user declines the installation", async () => {
-    mocks.multiselect.mockResolvedValue(["acrylic"]);
-    mocks.select.mockResolvedValue(70);
+    mocks.groupMultiselect.mockResolvedValue(["transparency"]);
+    mocks.select.mockResolvedValue("70");
     mocks.confirm.mockResolvedValue(false);
 
     await runInstaller();
@@ -121,7 +140,7 @@ describe("runInstaller", () => {
       throw new Error(`exit:${code}`);
     }) as never);
 
-    mocks.multiselect.mockResolvedValue(mocks.cancelSymbol);
+    mocks.groupMultiselect.mockResolvedValue(mocks.cancelSymbol);
 
     await expect(runInstaller()).rejects.toThrow("exit:0");
 
