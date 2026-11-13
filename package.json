@@ -1,13 +1,14 @@
 {
   "name": "@m0x373/pimpt",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Interactive setup assistant for Windows Terminal",
   "type": "module",
   "bin": {
     "pimpt": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --clean --sourcemap",
