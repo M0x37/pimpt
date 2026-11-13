@@ -1,0 +1,41 @@
+{
+  "name": "pimpt",
+  "version": "0.1.0",
+  "description": "Interactive setup assistant for Windows Terminal",
+  "type": "module",
+  "bin": {
+    "pimpt": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean --sourcemap",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "windows-terminal",
+    "cli",
+    "customization",
+    "typescript"
+  ],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.9.0",
+    "jsonc-parser": "^3.3.1",
+    "picocolors": "^1.1.1"
+  }
+}
