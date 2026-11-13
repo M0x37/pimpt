@@ -152,13 +152,15 @@ function selectResponses(...values: unknown[]): void {
   for (const value of values) {
     const settingArea =
       value === "historyPreview"
-        ? "Tools"
+        ? "Features"
         : value === "transparency" ||
             value === "background" ||
             value === "fontFace" ||
             value === "terminalIcons" ||
             value === "hidePowerShellBanner"
           ? "Appearance"
+          : value === "startingDirectory"
+            ? "Features"
           : undefined;
     if (settingArea && activeArea !== settingArea) {
       if (activeArea) mocks.select.mockResolvedValueOnce("back");
@@ -222,7 +224,7 @@ describe("runInstaller", () => {
     };
     expect(areas.options.map((option) => option.value)).toEqual([
       "Appearance",
-      "Tools",
+      "Features",
       "Other",
     ]);
     expect(areas.initialValue).toBe("Appearance");
@@ -399,6 +401,119 @@ describe("runInstaller", () => {
     );
   });
 
+  it("accepts a typed or pasted starting directory and applies it to the default profile", async () => {
+    readSettingsFile.mockReturnValue(`{
+      "defaultProfile": "powershell",
+      "profiles": {
+        "defaults": { "startingDirectory": "C:\\\\Windows" },
+        "list": [
+          {
+            "guid": "powershell",
+            "name": "Windows PowerShell",
+            "startingDirectory": "C:\\\\Windows"
+          }
+        ]
+      }
+    }`);
+    selectResponses("startingDirectory", "done");
+    mocks.text.mockResolvedValue("C:\\Program Files");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(mocks.text).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          "Enter or paste a path; relative paths start in your user folder",
+        initialValue: "C:\\Windows",
+      }),
+    );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      ["profiles", "defaults", "startingDirectory"],
+      "C:\\Program Files",
+    );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      ["profiles", "list", 0, "startingDirectory"],
+      "C:\\Program Files",
+    );
+    expect(summaryText()).toContain("C:\\Program Files");
+    expect(writeSettingsFile).toHaveBeenCalledOnce();
+  });
+
+  it("resolves a relative starting folder from the user profile", async () => {
+    vi.stubEnv("USERPROFILE", "C:\\Users\\test");
+    selectResponses("startingDirectory", "done");
+    mocks.text.mockResolvedValue('"Downloads"');
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    const textOptions = mocks.text.mock.calls[0]?.[0] as {
+      validate: (value: string | undefined) => string | undefined;
+    };
+    expect(textOptions.validate("%PIMPT_MISSING_ENV_TEST%\\Downloads")).toContain(
+      "Unknown environment variable",
+    );
+    expect(textOptions.validate("C:Downloads")).toContain(
+      "Use an absolute drive path",
+    );
+    if (process.platform === "win32") {
+      expect(
+        textOptions.validate(`C:\\__pimpt_missing_${process.pid}`),
+      ).toContain("Folder not found");
+      expect(textOptions.validate(process.execPath)).toContain(
+        "must be an existing folder",
+      );
+    }
+
+    expect(setSetting).toHaveBeenCalledWith(
+      expect.any(String),
+      ["profiles", "defaults", "startingDirectory"],
+      "C:\\Users\\test\\Downloads",
+    );
+    expect(summaryText()).toContain("C:\\Users\\test\\Downloads");
+  });
+
+  it("clears the starting directory when the text field is emptied", async () => {
+    readSettingsFile.mockReturnValue(`{
+      "defaultProfile": "powershell",
+      "profiles": {
+        "defaults": { "startingDirectory": "C:\\\\Windows" },
+        "list": [
+          {
+            "guid": "powershell",
+            "name": "Windows PowerShell",
+            "startingDirectory": "C:\\\\Windows"
+          }
+        ]
+      }
+    }`);
+    selectResponses("startingDirectory", "done");
+    mocks.text.mockResolvedValue("");
+    mocks.confirm.mockResolvedValue(true);
+
+    await runInstaller();
+
+    expect(setSetting).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      ["profiles", "defaults", "startingDirectory"],
+      undefined,
+    );
+    expect(setSetting).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      ["profiles", "list", 0, "startingDirectory"],
+      undefined,
+    );
+    expect(summaryText()).toContain("Default");
+    expect(writeSettingsFile).toHaveBeenCalledOnce();
+  });
+
   it("leaves the font unchanged when 'Keep current' is selected", async () => {
     selectResponses("fontFace", "keep", "done");
     mocks.confirm.mockResolvedValue(true);
@@ -488,10 +603,11 @@ describe("runInstaller", () => {
 
     await runInstaller();
 
-    const toolOptions = mocks.select.mock.calls[1]?.[0] as {
+    const featureOptions = mocks.select.mock.calls[1]?.[0] as {
       options: { value: string }[];
     };
-    expect(toolOptions.options.map((option) => option.value)).toEqual([
+    expect(featureOptions.options.map((option) => option.value)).toEqual([
+      "startingDirectory",
       "historyPreview",
       "back",
     ]);
@@ -499,7 +615,7 @@ describe("runInstaller", () => {
       message: expect.stringContaining("Up and Down arrows"),
     });
     expect(summaryText()).toContain("Command history preview");
-    expect(summaryText()).toContain("Tools");
+    expect(summaryText()).toContain("Features");
     expect(mocks.installPSReadLineModule).toHaveBeenCalledOnce();
     expect(mocks.addHistoryPreviewToPowerShellProfile).toHaveBeenCalledOnce();
     expect(setSetting).not.toHaveBeenCalled();
@@ -533,7 +649,7 @@ describe("runInstaller", () => {
     expect(mocks.createSettingsBackup).toHaveBeenCalledOnce();
     expect(writeSettingsFile).toHaveBeenCalledOnce();
     expect(summaryText()).toContain("Appearance");
-    expect(summaryText()).not.toContain("Tools");
+    expect(summaryText()).not.toContain("Features");
   });
 
   it("does not add a duplicate -NoLogo argument", async () => {

@@ -6,7 +6,7 @@ export type SettingGroup =
   | "Window & tabs"
   | "Profile"
   | "Behavior"
-  | "Tools"
+  | "Features"
   | "Other";
 
 export interface Choice {
@@ -343,16 +343,17 @@ export const settings: SettingDefinition[] = [
   },
   {
     id: "startingDirectory",
-    group: "Profile",
+    group: "Features",
     label: "Starting directory",
-    hint: "Folder the shell opens in",
+    hint: "Default shell folder",
     prompt: {
       kind: "text",
-      message: "Starting directory (leave empty for the default)",
-      placeholder: "%USERPROFILE%",
+      message: "Enter or paste a path; relative paths start in your user folder",
+      placeholder: "C:\\Users\\you\\Projects",
       initialValue: "",
     },
     summarize: (value) => (String(value).trim() ? String(value) : "Default"),
+    jsonPath: ["profiles", "defaults", "startingDirectory"],
   },
   {
     id: "copyOnSelect",
@@ -393,7 +394,7 @@ export const settings: SettingDefinition[] = [
   },
   {
     id: "historyPreview",
-    group: "Tools",
+    group: "Features",
     label: "Command history preview",
     hint: "Browse recent commands",
     prompt: {
@@ -448,7 +449,7 @@ export const groupOrder: SettingGroup[] = [
   "Window & tabs",
   "Profile",
   "Behavior",
-  "Tools",
+  "Features",
   "Other",
 ];
 

@@ -11,7 +11,9 @@ import {
   text,
 } from "@clack/prompts";
 import { spawn } from "node:child_process";
+import { statSync } from "node:fs";
 import { parse, type ParseError } from "jsonc-parser";
+import { win32 as pathWin32 } from "node:path";
 import pc from "picocolors";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -62,7 +64,108 @@ function bail<T>(value: T): Exclude<T, symbol> {
   return value as Exclude<T, symbol>;
 }
 
-async function askSetting(setting: SettingDefinition): Promise<SettingValue> {
+class StartingDirectoryInputError extends Error {}
+
+function normalizeStartingDirectory(value: string): string {
+  let directory = value.trim();
+  if (!directory) return "";
+
+  if (
+    (directory.startsWith('"') && directory.endsWith('"')) ||
+    (directory.startsWith("'") && directory.endsWith("'"))
+  ) {
+    directory = directory.slice(1, -1).trim();
+  }
+  if (!directory) return "";
+
+  const userProfile = process.env.USERPROFILE ?? process.env.HOME;
+  if (/^~(?=$|[\\/])/.test(directory)) {
+    if (!userProfile) {
+      throw new StartingDirectoryInputError(
+        "Cannot resolve '~' because the user folder is unknown.",
+      );
+    }
+    directory = directory.replace(/^~/, userProfile);
+  }
+
+  directory = directory.replace(/%([^%]+)%/g, (variable, name: string) => {
+    const key = Object.keys(process.env).find(
+      (candidate) => candidate.toLowerCase() === name.toLowerCase(),
+    );
+    const environmentValue = key ? process.env[key] : undefined;
+    if (environmentValue === undefined) {
+      throw new StartingDirectoryInputError(
+        `Unknown environment variable in starting path: ${variable}`,
+      );
+    }
+    return environmentValue;
+  });
+
+  if (/^[a-zA-Z]:(?![\\/])/.test(directory)) {
+    throw new StartingDirectoryInputError(
+      "Use an absolute drive path, for example C:\\Users\\you\\Downloads.",
+    );
+  }
+
+  if (/^[\\/](?![\\/])/.test(directory)) {
+    if (!userProfile) {
+      throw new StartingDirectoryInputError(
+        "Cannot resolve a rooted path because the user folder is unknown.",
+      );
+    }
+    directory = pathWin32.resolve(pathWin32.parse(userProfile).root, directory);
+  }
+
+  if (pathWin32.isAbsolute(directory)) return pathWin32.normalize(directory);
+  if (!userProfile) {
+    throw new StartingDirectoryInputError(
+      "Cannot resolve a relative starting path because the user folder is unknown.",
+    );
+  }
+  return pathWin32.resolve(userProfile, directory);
+}
+
+function validateStartingDirectory(value: string | undefined): string | undefined {
+  let directory: string;
+  try {
+    directory = normalizeStartingDirectory(value ?? "");
+  } catch (error) {
+    if (error instanceof StartingDirectoryInputError) return error.message;
+    throw error;
+  }
+
+  if (!directory || process.platform !== "win32") return undefined;
+
+  try {
+    if (!statSync(directory).isDirectory()) {
+      return "The starting path must be an existing folder.";
+    }
+  } catch (error) {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error.code === "ENOENT" || error.code === "ENOTDIR")
+    ) {
+      return `Folder not found: ${directory}`;
+    }
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error.code === "EACCES" || error.code === "EPERM")
+    ) {
+      return `Cannot access folder: ${directory}`;
+    }
+    throw error;
+  }
+  return undefined;
+}
+
+async function askSetting(
+  setting: SettingDefinition,
+  currentValue?: SettingValue,
+): Promise<SettingValue> {
   const prompt = setting.prompt;
 
   if (prompt.kind === "select") {
@@ -138,14 +241,22 @@ async function askSetting(setting: SettingDefinition): Promise<SettingValue> {
   }
 
   if (prompt.kind === "text") {
-    return bail(
+    const value = bail(
       await text({
         message: prompt.message,
         placeholder: prompt.placeholder,
-        initialValue: prompt.initialValue,
-        ...(prompt.validate ? { validate: prompt.validate } : {}),
+        initialValue:
+          currentValue === undefined ? prompt.initialValue : String(currentValue),
+        ...(setting.id === "startingDirectory"
+          ? { validate: validateStartingDirectory }
+          : prompt.validate
+            ? { validate: prompt.validate }
+            : {}),
       }),
     );
+    return setting.id === "startingDirectory"
+      ? normalizeStartingDirectory(value)
+      : value;
   }
 
   return bail(
@@ -317,6 +428,27 @@ function readConfiguredAnswers(
     "profiles" in parsed && parsed.profiles !== null
       ? parsed.profiles
       : undefined;
+  const profileList =
+    profiles !== null &&
+    typeof profiles === "object" &&
+    !Array.isArray(profiles) &&
+    "list" in profiles &&
+    Array.isArray(profiles.list)
+      ? profiles.list
+      : [];
+  const defaultProfileGuid =
+    "defaultProfile" in parsed ? parsed.defaultProfile : undefined;
+  const defaultProfile =
+    typeof defaultProfileGuid === "string"
+      ? profileList.find(
+          (profile: unknown) =>
+            profile !== null &&
+            typeof profile === "object" &&
+            !Array.isArray(profile) &&
+            "guid" in profile &&
+            profile.guid === defaultProfileGuid,
+        )
+      : undefined;
   const defaults =
     profiles !== null &&
     typeof profiles === "object" &&
@@ -345,6 +477,11 @@ function readConfiguredAnswers(
       answers.background = defaults.background;
     }
 
+    const defaultStartingDirectory =
+      "startingDirectory" in defaults &&
+      typeof defaults.startingDirectory === "string"
+        ? defaults.startingDirectory
+        : undefined;
     const font =
       "font" in defaults && defaults.font !== null
         ? defaults.font
@@ -357,6 +494,26 @@ function readConfiguredAnswers(
       typeof font.face === "string"
     ) {
       answers.fontFace = font.face;
+    }
+
+    const profileStartingDirectory =
+      defaultProfile !== null &&
+      typeof defaultProfile === "object" &&
+      !Array.isArray(defaultProfile) &&
+      "startingDirectory" in defaultProfile &&
+      typeof defaultProfile.startingDirectory === "string"
+        ? defaultProfile.startingDirectory
+        : undefined;
+    const startingDirectory =
+      profileStartingDirectory ?? defaultStartingDirectory;
+    if (startingDirectory !== undefined) {
+      const error = validateStartingDirectory(startingDirectory);
+      if (error) {
+        log.warn(pc.yellow(`Ignoring the saved starting directory: ${error}`));
+      } else {
+        answers.startingDirectory =
+          normalizeStartingDirectory(startingDirectory);
+      }
     }
   }
 
@@ -446,6 +603,17 @@ async function applySettings(
           value,
         );
       }
+    } else if (setting.id === "startingDirectory") {
+      const defaultProfileIndex = getDefaultProfileIndex(content);
+      const startingDirectory = String(value).trim() || undefined;
+      content = setSetting(content, setting.jsonPath, startingDirectory);
+      if (defaultProfileIndex !== undefined) {
+        content = setSetting(
+          content,
+          ["profiles", "list", defaultProfileIndex, "startingDirectory"],
+          startingDirectory,
+        );
+      }
     } else {
       content = setSetting(content, setting.jsonPath, value);
     }
@@ -517,7 +685,8 @@ export async function runInstaller(): Promise<void> {
         (setting.jsonPath !== undefined ||
           setting.id === "terminalIcons" ||
           setting.id === "hidePowerShellBanner")) ||
-      (setting.group === "Tools" && setting.id === "historyPreview"),
+      (setting.group === "Features" &&
+        (setting.jsonPath !== undefined || setting.id === "historyPreview")),
   );
   const settingsPath = findSettingsPath();
   const backups = settingsPath ? listSettingsBackups(settingsPath) : [];
@@ -528,7 +697,7 @@ export async function runInstaller(): Promise<void> {
   while (true) {
     const areaOptions = [
       { value: "Appearance", label: "Appearance", hint: "Colors and profile settings" },
-      { value: "Tools", label: "Tools", hint: "Command-line tools" },
+      { value: "Features", label: "Features", hint: "Optional extras" },
       { value: "Other", label: "Other", hint: "Backups and recovery" },
     ];
     if (Object.keys(answers).length > 0) {
@@ -667,7 +836,7 @@ export async function runInstaller(): Promise<void> {
 
       initialPickerValue = selectedId;
       log.step(pc.bold(pc.cyan(setting.group)));
-      answers[setting.id] = await askSetting(setting);
+      answers[setting.id] = await askSetting(setting, answers[setting.id]);
       if (setting.id === "terminalIcons" && answers.terminalIcons === true) {
         answers.fontFace = NERD_FONT_FAMILY;
         initialPickerValue = "terminalIcons";
