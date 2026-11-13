@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => {
     note: vi.fn(),
     outro: vi.fn(),
     cancel: vi.fn(),
-    groupMultiselect: vi.fn(),
     select: vi.fn(),
     text: vi.fn(),
     confirm: vi.fn(),
@@ -24,7 +23,6 @@ vi.mock("@clack/prompts", () => ({
   note: mocks.note,
   outro: mocks.outro,
   cancel: mocks.cancel,
-  groupMultiselect: mocks.groupMultiselect,
   select: mocks.select,
   text: mocks.text,
   confirm: mocks.confirm,
@@ -71,37 +69,13 @@ beforeEach(() => {
 });
 
 describe("runInstaller", () => {
-  it("offers only the Appearance group with background only", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
+  it("asks for background color and renders a grouped summary", async () => {
     mocks.select.mockResolvedValue("#2E3440");
     mocks.confirm.mockResolvedValue(true);
 
     await runInstaller();
 
-    expect(mocks.groupMultiselect).toHaveBeenCalledOnce();
-
-    const options = mocks.groupMultiselect.mock.calls[0]?.[0] as {
-      options: Record<string, unknown>;
-      maxItems?: number;
-      selectableGroups?: boolean;
-    };
-
-    expect(Object.keys(options.options)).toEqual(["Appearance"]);
-    expect((options.options as Record<string, unknown>).Appearance).toEqual([
-      { value: "background", label: "Background color", hint: "Palette preset or custom hex" },
-    ]);
-    expect(options.maxItems).toBe(8);
-    expect(options.selectableGroups).toBe(false);
-  });
-
-  it("asks only background and renders a grouped summary", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
-    mocks.select.mockResolvedValue("#2E3440");
-    mocks.confirm.mockResolvedValue(true);
-
-    await runInstaller();
-
-    expect(mocks.select).toHaveBeenCalledTimes(1);
+    expect(mocks.select).toHaveBeenCalledOnce();
     expect(mocks.confirm).toHaveBeenCalledOnce();
 
     expect(summaryText()).toContain("Appearance");
@@ -113,7 +87,6 @@ describe("runInstaller", () => {
   });
 
   it("asks for a custom background color and validates it", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
     mocks.select.mockResolvedValue("custom");
     mocks.text.mockResolvedValue("1e1e2e");
     mocks.confirm.mockResolvedValue(true);
@@ -132,7 +105,6 @@ describe("runInstaller", () => {
   });
 
   it("stops when the user declines the installation", async () => {
-    mocks.groupMultiselect.mockResolvedValue(["background"]);
     mocks.select.mockResolvedValue("70");
     mocks.confirm.mockResolvedValue(false);
 
@@ -150,7 +122,7 @@ describe("runInstaller", () => {
       throw new Error(`exit:${code}`);
     }) as never);
 
-    mocks.groupMultiselect.mockResolvedValue(mocks.cancelSymbol);
+    mocks.select.mockResolvedValue(mocks.cancelSymbol);
 
     await expect(runInstaller()).rejects.toThrow("exit:0");
 

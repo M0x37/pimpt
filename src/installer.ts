@@ -1,7 +1,6 @@
 import {
   cancel,
   confirm,
-  groupMultiselect,
   intro,
   isCancel,
   log,
@@ -15,7 +14,6 @@ import pc from "picocolors";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   BACKGROUND_CUSTOM,
-  buildGroupedOptions,
   settings,
   type SettingDefinition,
   type SettingValue,
@@ -131,34 +129,19 @@ export async function runInstaller(): Promise<void> {
     "Preview mode",
   );
 
-  // Erster Schritt: nur die Appearance-Gruppe, und darin nur "Background".
-  const appearanceOptions = Object.fromEntries(
-    Object.entries(buildGroupedOptions()).filter(
-      ([group]) => group === "Appearance",
-    ),
-  );
-  appearanceOptions.Appearance =
-    appearanceOptions.Appearance?.filter((option) => option.value === "background") ?? [];
-
-  const selected = bail(
-    await groupMultiselect<string>({
-      message: "What would you like to customize?",
-      options: appearanceOptions,
-      required: true,
-      selectableGroups: false,
-      maxItems: 8,
-    }),
+  // Nur die Background-Einstellung aus der Appearance-Gruppe.
+  const background = settings.find(
+    (setting) => setting.id === "background",
   );
 
-  const chosen = settings.filter(
-    (setting) => setting.group === "Appearance" && selected.includes(setting.id),
-  );
-  const answers: Record<string, SettingValue> = {};
-
-  for (const setting of chosen) {
-    log.step(pc.bold(pc.cyan(setting.group)));
-    answers[setting.id] = await askSetting(setting);
+  if (!background) {
+    cancel("Background setting not found.");
+    return;
   }
+
+  log.step(pc.bold(pc.cyan(background.group)));
+  const answers: Record<string, SettingValue> = {};
+  answers[background.id] = await askSetting(background);
 
   renderSummary(answers);
 
