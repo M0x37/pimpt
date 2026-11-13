@@ -61,6 +61,7 @@ const transparencyOptions: Choice[] = [
   { value: "80", label: "Balanced", hint: "80% opacity" },
   { value: "70", label: "Frosted", hint: "70% opacity" },
   { value: "50", label: "Heavy", hint: "50% opacity" },
+  { value: "0", label: "Fully transparent", hint: "Content 0%; tab row 50% acrylic" },
 ];
 
 const backgroundOptions: Choice[] = [
@@ -155,21 +156,25 @@ export const settings: SettingDefinition[] = [
     id: "transparency",
     group: "Appearance",
     label: "Transparency",
-    hint: "Acrylic material and opacity",
+    hint: "Window opacity and acrylic tab row",
     prompt: {
       kind: "select",
       message: "How transparent should the window be?",
       options: transparencyOptions,
       initialValue: "80",
     },
-    summarize: (value) =>
-      value === "off" ? "Off" : `Acrylic · ${String(value)}% opacity`,
+    summarize: (value) => {
+      if (value === "off") return "Off";
+      if (value === "0") return "Fully transparent content";
+      return `Acrylic · ${String(value)}% opacity`;
+    },
+    jsonPath: ["profiles", "defaults", "opacity"],
   },
   {
     id: "background",
     group: "Appearance",
     label: "Background color",
-    hint: "Palette preset or custom hex",
+    hint: "Palette preset or custom hex; also colors the active tab",
     prompt: {
       kind: "select",
       message: "Pick a background color",
