@@ -122,8 +122,8 @@ describe("addTreeListingToPowerShellProfile", () => {
     expect(treeBlock).toContain("output capped at");
     expect(treeBlock).toContain("ls: cannot access");
     expect(treeBlock).toContain("[cannot read:");
-    expect(treeBlock).toContain("├── ");
-    expect(treeBlock).toContain("└── ");
+    expect(treeBlock).toContain("|-- ");
+    expect(treeBlock).toContain("|-- ");
   });
 });
 
