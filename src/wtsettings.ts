@@ -5,9 +5,9 @@ import {
   readFileSync,
   readdirSync,
   writeFileSync,
-} from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { applyEdits, modify, parse, type ParseError } from "jsonc-parser";
+} from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser';
 
 export interface SettingsBackup {
   path: string;
@@ -17,9 +17,9 @@ export interface SettingsBackup {
 export class InvalidSettingsFileError extends Error {
   constructor() {
     super(
-      "Windows Terminal settings.json is invalid JSONC. No changes were written. Restore the file from a backup before trying again.",
+      'Windows Terminal settings.json is invalid JSONC. No changes were written. Restore the file from a backup before trying again.'
     );
-    this.name = "InvalidSettingsFileError";
+    this.name = 'InvalidSettingsFileError';
   }
 }
 
@@ -32,9 +32,27 @@ export function findSettingsPath(): string | undefined {
   if (!localAppData) return undefined;
 
   const candidates = [
-    join(localAppData, "Packages", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", "LocalState", "settings.json"),
-    join(localAppData, "Packages", "Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe", "LocalState", "settings.json"),
-    join(localAppData, "Packages", "Microsoft.WindowsTerminal.Canary_8wekyb3d8bbwe", "LocalState", "settings.json"),
+    join(
+      localAppData,
+      'Packages',
+      'Microsoft.WindowsTerminal_8wekyb3d8bbwe',
+      'LocalState',
+      'settings.json'
+    ),
+    join(
+      localAppData,
+      'Packages',
+      'Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe',
+      'LocalState',
+      'settings.json'
+    ),
+    join(
+      localAppData,
+      'Packages',
+      'Microsoft.WindowsTerminal.Canary_8wekyb3d8bbwe',
+      'LocalState',
+      'settings.json'
+    ),
   ];
 
   for (const path of candidates) {
@@ -48,7 +66,7 @@ export function findSettingsPath(): string | undefined {
  * Liest die settings.json als rohen Text.
  */
 export function readSettingsFile(settingsPath: string): string {
-  return readFileSync(settingsPath, "utf8");
+  return readFileSync(settingsPath, 'utf8');
 }
 
 /**
@@ -56,7 +74,7 @@ export function readSettingsFile(settingsPath: string): string {
  * werden so weit wie möglich erhalten (jsonc-parser.modify).
  */
 export function writeSettingsFile(settingsPath: string, content: string): void {
-  writeFileSync(settingsPath, content, "utf8");
+  writeFileSync(settingsPath, content, 'utf8');
 }
 
 export function createSettingsBackup(settingsPath: string): string {
@@ -91,27 +109,24 @@ export function listSettingsBackups(settingsPath: string): SettingsBackup[] {
     .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 }
 
-export function restoreSettingsBackup(
-  settingsPath: string,
-  backupPath: string,
-): string {
+export function restoreSettingsBackup(settingsPath: string, backupPath: string): string {
   const backup = listSettingsBackups(settingsPath).find(
-    (candidate) => candidate.path === backupPath,
+    (candidate) => candidate.path === backupPath
   );
   if (!backup) {
-    throw new Error("The selected settings backup is not available.");
+    throw new Error('The selected settings backup is not available.');
   }
 
-  const content = readFileSync(backup.path, "utf8");
+  const content = readFileSync(backup.path, 'utf8');
   const parseErrors: ParseError[] = [];
   const parsedContent = parse(content, parseErrors, { allowTrailingComma: true });
   if (
     parseErrors.length > 0 ||
     parsedContent === null ||
-    typeof parsedContent !== "object" ||
+    typeof parsedContent !== 'object' ||
     Array.isArray(parsedContent)
   ) {
-    throw new Error("The selected backup is invalid JSONC. Nothing was changed.");
+    throw new Error('The selected backup is invalid JSONC. Nothing was changed.');
   }
 
   const safetyBackupPath = createSettingsBackup(settingsPath);
@@ -127,17 +142,13 @@ export function restoreSettingsBackup(
  * @param value - Der neue Wert
  * @returns Der neu geschriebene Dateiinhalt
  */
-export function setSetting(
-  content: string,
-  jsonPath: (string | number)[],
-  value: unknown,
-): string {
+export function setSetting(content: string, jsonPath: (string | number)[], value: unknown): string {
   const parseErrors: ParseError[] = [];
   const parsedContent = parse(content, parseErrors, { allowTrailingComma: true });
   if (
     parseErrors.length > 0 ||
     parsedContent === null ||
-    typeof parsedContent !== "object" ||
+    typeof parsedContent !== 'object' ||
     Array.isArray(parsedContent)
   ) {
     throw new InvalidSettingsFileError();
