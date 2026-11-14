@@ -738,9 +738,9 @@ describe("runInstaller", () => {
     await runInstaller();
 
     expect(mocks.confirm.mock.calls[0]?.[0]).toMatchObject({
-      message: expect.stringContaining("cross-drive cd"),
+      message: expect.stringContaining("zoxide-style"),
     });
-    expect(summaryText()).toContain("Cross-drive cd");
+    expect(summaryText()).toContain("Smart cd (zoxide-style)");
     expect(mocks.addCrossDriveCdToPowerShellProfile).toHaveBeenCalledOnce();
     expect(setSetting).not.toHaveBeenCalled();
     expect(writeSettingsFile).not.toHaveBeenCalled();

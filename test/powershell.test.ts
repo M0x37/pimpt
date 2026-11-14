@@ -63,7 +63,7 @@ describe("addCrossDriveCdToPowerShellProfile", () => {
     vi.clearAllMocks();
   });
 
-  it("removes the cd alias and allows switching drives by letter", () => {
+  it("removes the cd alias and installs zoxide-style frecency jumping", () => {
     vi.stubGlobal("process", { platform: "win32" });
     try {
       addCrossDriveCdToPowerShellProfile();
@@ -80,10 +80,15 @@ describe("addCrossDriveCdToPowerShellProfile", () => {
     const cdBlock = scripts[1] ? decodeProfileBlock(scripts[1]) : undefined;
 
     expect(aliasBlock).toContain("Remove-Item Alias:cd");
+    expect(cdBlock).toContain("# >>> pimpt cross-drive cd v3 >>>");
     expect(cdBlock).toContain("function cd {");
+    expect(cdBlock).toContain("function cdi {");
+    expect(cdBlock).toContain("__pimpt_cd_frecency");
+    expect(cdBlock).toContain("__pimpt_cd_query");
+    expect(cdBlock).toContain("cd-db.json");
     expect(cdBlock).toContain("^[A-Za-z]:?$");
     expect(cdBlock).toContain("drive {0}: is not available");
-    expect(cdBlock).toContain("^[/_-]d$");
+    expect(cdBlock).toContain("no match for");
   });
 });
 
@@ -134,9 +139,9 @@ describe("readPowerShellProfileFeatures", () => {
       "# >>> pimpt lazy git >>>",
       "function lg {}",
       "# <<< pimpt lazy git <<<",
-      "# >>> pimpt cross-drive cd >>>",
+      "# >>> pimpt cross-drive cd v3 >>>",
       "function cd {}",
-      "# <<< pimpt cross-drive cd <<<",
+      "# <<< pimpt cross-drive cd v3 <<<",
       "# >>> pimpt tree-style ls v2 >>>",
       "function ls {}",
       "# <<< pimpt tree-style ls v2 <<<",

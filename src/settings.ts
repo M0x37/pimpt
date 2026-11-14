@@ -421,12 +421,12 @@ export const settings: SettingDefinition[] = [
   {
     id: "crossDriveCd",
     group: "Features",
-    label: "Cross-drive cd",
-    hint: "Switch drives with cd D or cd D:",
+    label: "Smart cd (zoxide-style)",
+    hint: "Remember folders and jump by keyword",
     prompt: {
       kind: "confirm",
       message:
-        "Enable cross-drive cd? Lets you switch drives from any folder with cd D, cd D:, or cd /d D:\\path. Set-Location remains available as usual.",
+        "Enable smart cd? Remembers folders you visit (zoxide-style frecency), replaces cd so you can jump with keywords like cd pimpt, supports cd D / cd D: for drives, and adds cdi for interactive picks. Set-Location remains available.",
       initialValue: true,
     },
     summarize: onOff,

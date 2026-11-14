@@ -50,10 +50,10 @@ The installer detects the Windows Terminal settings file for the Stable, Preview
 - Set a default starting directory. Relative paths such as `Downloads` resolve from your user folder.
 - Enable a scrollable command history preview with PSReadLine.
 - Enable Lazy Git (`lg`): an interactive Git UI for status, staging, commit, push/pull, branches, log, and stash, plus Tab completion for Git commands, branches, and files.
-- Enable cross-drive `cd` so you can switch from C: to D: (and other drives) with `cd D`, `cd D:`, or `cd /d D:\path`.
+- Enable smart `cd` (zoxide-style): remembers folders you visit, then jumps by keyword (`cd pimpt`), supports drive switches (`cd D`, `cd D:`), and interactive picks with `cdi`.
 - Enable a colored tree view for `ls`.
 
-When cross-drive `cd` is enabled, `Set-Location` remains available for the built-in behavior.
+When smart `cd` is enabled, `Set-Location` remains available for the built-in behavior. Visit a folder once (or use a full path); later jump back with a short keyword from any drive.
 
 When tree-style `ls` is enabled, the original `Get-ChildItem` command remains available as `gci`.
 

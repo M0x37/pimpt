@@ -1,0 +1,13 @@
+tasks:
+
+  test:
+    desc: starts build and npm start.
+    alias: t
+    vars:
+      target: release
+    run:
+      - cmd: npm run build
+      - cmd: npm start
+      
+
+ 
