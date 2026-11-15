@@ -507,8 +507,11 @@ function readConfiguredAnswers(settingsPath: string | undefined): Record<string,
       answers.backgroundImage = defaults.backgroundImage;
     }
 
-    if ('fontSize' in defaults && typeof defaults.fontSize === 'string') {
-      answers.fontSize = defaults.fontSize;
+    if ('fontSize' in defaults) {
+      const fontSize = defaults.fontSize;
+      if (typeof fontSize === 'string' || typeof fontSize === 'number') {
+        answers.fontSize = String(fontSize);
+      }
     }
 
     if ('cursorShape' in defaults && typeof defaults.cursorShape === 'string') {
