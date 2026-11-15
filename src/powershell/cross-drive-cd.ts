@@ -50,7 +50,7 @@ const crossDriveCdLines = [
   '    $data.entries = @($data.entries) + @([pscustomobject]@{ path = $resolved; score = 1.0; last = $now })',
   '  }',
   '  if (@($data.entries).Count -gt 5000) {',
-  "    $data.entries = @($data.entries | Sort-Object @{Expression = 'Rank'; Descending = $true}, Path) | Select-Object -First 4000)",
+  "    $data.entries = @($data.entries | Sort-Object @{Expression = 'Rank'; Descending = $true}, Path) | Select-Object -First 4000",
   '  }',
   '  __pimpt_cd_save $data',
   '}',
