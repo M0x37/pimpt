@@ -1,4 +1,4 @@
-import { settings, type SettingValue } from "./settings.js";
+import { settings, type SettingValue } from './settings.js';
 
 export interface SummarySection {
   group: string;
@@ -6,12 +6,10 @@ export interface SummarySection {
 }
 
 export function normalizeHex(value: string): string {
-  return value.trim().replace(/^#?/, "#").toUpperCase();
+  return value.trim().replace(/^#?/, '#').toUpperCase();
 }
 
-export function buildSummarySections(
-  answers: Record<string, SettingValue>,
-): SummarySection[] {
+export function buildSummarySections(answers: Record<string, SettingValue>): SummarySection[] {
   const sections: SummarySection[] = [];
   let current: SummarySection | null = null;
 

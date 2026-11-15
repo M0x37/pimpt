@@ -1,13 +1,7 @@
 export type SettingValue = string | boolean;
 
 export type SettingGroup =
-  | "Appearance"
-  | "Colors"
-  | "Window & tabs"
-  | "Profile"
-  | "Behavior"
-  | "Features"
-  | "Other";
+  'Appearance' | 'Colors' | 'Window & tabs' | 'Profile' | 'Behavior' | 'Features' | 'Other';
 
 export interface Choice {
   value: string;
@@ -17,20 +11,20 @@ export interface Choice {
 
 export type Prompt =
   | {
-      kind: "select";
+      kind: 'select';
       message: string;
       options: Choice[];
       initialValue: string;
     }
   | {
-      kind: "text";
+      kind: 'text';
       message: string;
       placeholder: string;
       initialValue: string;
       validate?: (value: string | undefined) => string | undefined;
     }
   | {
-      kind: "confirm";
+      kind: 'confirm';
       message: string;
       initialValue: boolean;
     };
@@ -55,97 +49,99 @@ export interface SettingDefinition {
   skipIfKeep?: boolean;
 }
 
-export const BACKGROUND_CUSTOM = "custom";
+export const BACKGROUND_CUSTOM = 'custom';
 
 const transparencyOptions: Choice[] = [
-  { value: "off", label: "Off", hint: "Solid background" },
-  { value: "90", label: "Subtle", hint: "90% opacity" },
-  { value: "80", label: "Balanced", hint: "80% opacity" },
-  { value: "70", label: "Frosted", hint: "70% opacity" },
-  { value: "50", label: "Heavy", hint: "50% opacity" },
-  { value: "0", label: "Fully transparent", hint: "Content 0%; tab row 50% acrylic" },
+  { value: 'off', label: 'Off', hint: 'Solid background' },
+  { value: '90', label: 'Subtle', hint: '90% opacity' },
+  { value: '80', label: 'Balanced', hint: '80% opacity' },
+  { value: '70', label: 'Frosted', hint: '70% opacity' },
+  { value: '50', label: 'Heavy', hint: '50% opacity' },
+  { value: '0', label: 'Fully transparent', hint: 'Content 0%; tab row 50% acrylic' },
 ];
 
 const backgroundOptions: Choice[] = [
-  { value: "keep", label: "Keep current", hint: "Leave the background unchanged" },
-  { value: "#0B1021", label: "Midnight", hint: "#0B1021" },
-  { value: "#2E3440", label: "Nord", hint: "#2E3440" },
-  { value: "#282A36", label: "Dracula", hint: "#282A36" },
-  { value: "#002B36", label: "Solarized Dark", hint: "#002B36" },
+  { value: 'keep', label: 'Keep current', hint: 'Leave the background unchanged' },
+  { value: '#0B1021', label: 'Midnight', hint: '#0B1021' },
+  { value: '#2E3440', label: 'Nord', hint: '#2E3440' },
+  { value: '#282A36', label: 'Dracula', hint: '#282A36' },
+  { value: '#002B36', label: 'Solarized Dark', hint: '#002B36' },
   {
     value: BACKGROUND_CUSTOM,
-    label: "Custom hex",
-    hint: "Enter your own color",
+    label: 'Custom hex',
+    hint: 'Enter your own color',
   },
 ];
 
 const fontOptions: Choice[] = [
-  { value: "keep", label: "Keep current", hint: "Use the configured font" },
-  { value: "Cascadia Mono", label: "Cascadia Mono", hint: "Windows Terminal default" },
-  { value: "Cascadia Code", label: "Cascadia Code", hint: "Ligatures included" },
-  { value: "Consolas", label: "Consolas", hint: "Classic Windows font" },
-  { value: "JetBrains Mono", label: "JetBrains Mono", hint: "Popular developer font" },
-  { value: "Fira Code", label: "Fira Code", hint: "Monospace with ligatures" },
-  { value: "Hack", label: "Hack", hint: "Designed for source code" },
-  { value: "Source Code Pro", label: "Source Code Pro", hint: "Adobe's monospace font" },
-  { value: "IBM Plex Mono", label: "IBM Plex Mono", hint: "Technical, readable monospace" },
+  { value: 'keep', label: 'Keep current', hint: 'Use the configured font' },
+  { value: 'Cascadia Mono', label: 'Cascadia Mono', hint: 'Windows Terminal default' },
+  { value: 'Cascadia Code', label: 'Cascadia Code', hint: 'Ligatures included' },
+  { value: 'Consolas', label: 'Consolas', hint: 'Classic Windows font' },
+  { value: 'JetBrains Mono', label: 'JetBrains Mono', hint: 'Popular developer font' },
+  { value: 'Fira Code', label: 'Fira Code', hint: 'Monospace with ligatures' },
+  { value: 'Hack', label: 'Hack', hint: 'Designed for source code' },
+  { value: 'Source Code Pro', label: 'Source Code Pro', hint: "Adobe's monospace font" },
+  { value: 'IBM Plex Mono', label: 'IBM Plex Mono', hint: 'Technical, readable monospace' },
 ];
 
-const fontSizeOptions: Choice[] = ["10", "11", "12", "14", "16", "18"].map(
-  (value) => ({ value, label: `${value} pt`, hint: "Points" }),
-);
+const fontSizeOptions: Choice[] = ['10', '11', '12', '14', '16', '18'].map((value) => ({
+  value,
+  label: `${value} pt`,
+  hint: 'Points',
+}));
 
 const cursorOptions: Choice[] = [
-  { value: "keep", label: "Keep current", hint: "Use the configured cursor" },
-  { value: "bar", label: "Bar", hint: "Thin vertical line" },
-  { value: "filledBox", label: "Block", hint: "Filled rectangle" },
-  { value: "underscore", label: "Underline", hint: "Line below the text" },
-  { value: "vintage", label: "Vintage", hint: "Retro terminal blink" },
+  { value: 'keep', label: 'Keep current', hint: 'Use the configured cursor' },
+  { value: 'bar', label: 'Bar', hint: 'Thin vertical line' },
+  { value: 'filledBox', label: 'Block', hint: 'Filled rectangle' },
+  { value: 'underscore', label: 'Underline', hint: 'Line below the text' },
+  { value: 'vintage', label: 'Vintage', hint: 'Retro terminal blink' },
 ];
 
 const schemeOptions: Choice[] = [
-  { value: "keep", label: "Keep current", hint: "Use the configured scheme" },
-  { value: "Campbell", label: "Campbell", hint: "Windows Terminal default" },
-  { value: "One Half Dark", label: "One Half Dark", hint: "Cool, muted palette" },
-  { value: "Solarized Dark", label: "Solarized Dark", hint: "Low-contrast classic" },
-  { value: "Tango Dark", label: "Tango Dark", hint: "Colorful and warm" },
-  { value: "Vintage", label: "Vintage", hint: "Retro phosphor look" },
+  { value: 'keep', label: 'Keep current', hint: 'Use the configured scheme' },
+  { value: 'Campbell', label: 'Campbell', hint: 'Windows Terminal default' },
+  { value: 'One Half Dark', label: 'One Half Dark', hint: 'Cool, muted palette' },
+  { value: 'Solarized Dark', label: 'Solarized Dark', hint: 'Low-contrast classic' },
+  { value: 'Tango Dark', label: 'Tango Dark', hint: 'Colorful and warm' },
+  { value: 'Vintage', label: 'Vintage', hint: 'Retro phosphor look' },
 ];
 
 const launchModeOptions: Choice[] = [
-  { value: "default", label: "Windowed", hint: "Normal window" },
-  { value: "maximized", label: "Maximized", hint: "Fill the screen" },
-  { value: "fullscreen", label: "Fullscreen", hint: "Hide the window frame" },
-  { value: "focus", label: "Focus mode", hint: "Minimal distractions" },
+  { value: 'default', label: 'Windowed', hint: 'Normal window' },
+  { value: 'maximized', label: 'Maximized', hint: 'Fill the screen' },
+  { value: 'fullscreen', label: 'Fullscreen', hint: 'Hide the window frame' },
+  { value: 'focus', label: 'Focus mode', hint: 'Minimal distractions' },
   {
-    value: "maximizedFocus",
-    label: "Maximized focus",
-    hint: "Maximized and distraction-free",
+    value: 'maximizedFocus',
+    label: 'Maximized focus',
+    hint: 'Maximized and distraction-free',
   },
 ];
 
 const appThemeOptions: Choice[] = [
-  { value: "system", label: "System", hint: "Follow Windows" },
-  { value: "dark", label: "Dark", hint: "Always dark" },
-  { value: "light", label: "Light", hint: "Always light" },
+  { value: 'system', label: 'System', hint: 'Follow Windows' },
+  { value: 'dark', label: 'Dark', hint: 'Always dark' },
+  { value: 'light', label: 'Light', hint: 'Always light' },
 ];
 
 const tabLayoutOptions: Choice[] = [
-  { value: "titlebar", label: "Tabs in titlebar", hint: "Compact, modern layout" },
-  { value: "separate", label: "Separate tab row", hint: "Tabs below the titlebar" },
+  { value: 'titlebar', label: 'Tabs in titlebar', hint: 'Compact, modern layout' },
+  { value: 'separate', label: 'Separate tab row', hint: 'Tabs below the titlebar' },
 ];
 
 const tabWidthOptions: Choice[] = [
-  { value: "equal", label: "Equal", hint: "All tabs share the width" },
-  { value: "titleLength", label: "Title length", hint: "Width fits the title" },
-  { value: "compact", label: "Compact", hint: "Shrink to fit" },
+  { value: 'equal', label: 'Equal', hint: 'All tabs share the width' },
+  { value: 'titleLength', label: 'Title length', hint: 'Width fits the title' },
+  { value: 'compact', label: 'Compact', hint: 'Shrink to fit' },
 ];
 
 const iconOptions: Choice[] = [
-  { value: "classic", label: "Classic terminal", hint: "Monochrome prompt glyph" },
-  { value: "rocket", label: "Rocket", hint: "Launch-ready" },
-  { value: "bolt", label: "Bolt", hint: "Fast and loud" },
-  { value: "code", label: "Code", hint: "Developer vibes" },
+  { value: 'classic', label: 'Classic terminal', hint: 'Monochrome prompt glyph' },
+  { value: 'rocket', label: 'Rocket', hint: 'Launch-ready' },
+  { value: 'bolt', label: 'Bolt', hint: 'Fast and loud' },
+  { value: 'code', label: 'Code', hint: 'Developer vibes' },
 ];
 
 function labelOf(options: Choice[], value: string): string {
@@ -153,357 +149,345 @@ function labelOf(options: Choice[], value: string): string {
 }
 
 function onOff(value: SettingValue): string {
-  return value === true ? "Enabled" : "Disabled";
+  return value === true ? 'Enabled' : 'Disabled';
 }
 
 export const settings: SettingDefinition[] = [
   {
-    id: "transparency",
-    group: "Appearance",
-    label: "Transparency",
-    hint: "Window opacity",
+    id: 'transparency',
+    group: 'Appearance',
+    label: 'Transparency',
+    hint: 'Window opacity',
     prompt: {
-      kind: "select",
-      message: "How transparent should the window be?",
+      kind: 'select',
+      message: 'How transparent should the window be?',
       options: transparencyOptions,
-      initialValue: "80",
+      initialValue: '80',
     },
     summarize: (value) => {
-      if (value === "off") return "Off";
-      if (value === "0") return "Fully transparent content";
+      if (value === 'off') return 'Off';
+      if (value === '0') return 'Fully transparent content';
       return `Acrylic · ${String(value)}% opacity`;
     },
-    jsonPath: ["profiles", "defaults", "opacity"],
+    jsonPath: ['profiles', 'defaults', 'opacity'],
   },
   {
-    id: "background",
-    group: "Appearance",
-    label: "Background color",
-    hint: "Preset or custom color",
+    id: 'background',
+    group: 'Appearance',
+    label: 'Background color',
+    hint: 'Preset or custom color',
     prompt: {
-      kind: "select",
-      message: "Pick a background color",
+      kind: 'select',
+      message: 'Pick a background color',
       options: backgroundOptions,
-      initialValue: "keep",
+      initialValue: 'keep',
     },
     summarize: (value) => {
-      if (value === "keep") return "Keep current";
+      if (value === 'keep') return 'Keep current';
       const preset = backgroundOptions.find(
-        (option) => option.value === value && option.value !== "keep" && option.value !== BACKGROUND_CUSTOM,
+        (option) =>
+          option.value === value && option.value !== 'keep' && option.value !== BACKGROUND_CUSTOM
       );
       return preset ? `${preset.label} (${preset.value})` : `Custom (${String(value)})`;
     },
-    jsonPath: ["profiles", "defaults", "background"],
+    jsonPath: ['profiles', 'defaults', 'background'],
     skipIfKeep: true,
   },
   {
-    id: "backgroundImage",
-    group: "Appearance",
-    label: "Background image",
-    hint: "Path to a local image",
+    id: 'backgroundImage',
+    group: 'Appearance',
+    label: 'Background image',
+    hint: 'Path to a local image',
     prompt: {
-      kind: "text",
-      message: "Path to a background image (leave empty to skip)",
-      placeholder: "C:\\Users\\you\\wallpaper.png",
-      initialValue: "",
+      kind: 'text',
+      message: 'Path to a background image (leave empty to skip)',
+      placeholder: 'C:\\Users\\you\\wallpaper.png',
+      initialValue: '',
     },
-    summarize: (value) => (String(value).trim() ? String(value) : "Not set"),
+    summarize: (value) => (String(value).trim() ? String(value) : 'Not set'),
   },
   {
-    id: "fontFace",
-    group: "Appearance",
-    label: "Font",
-    hint: "Terminal font",
+    id: 'fontFace',
+    group: 'Appearance',
+    label: 'Font',
+    hint: 'Terminal font',
     prompt: {
-      kind: "select",
-      message: "Choose a font",
+      kind: 'select',
+      message: 'Choose a font',
       options: fontOptions,
-      initialValue: "keep",
+      initialValue: 'keep',
     },
     summarize: (value) => labelOf(fontOptions, String(value)),
-    jsonPath: ["profiles", "defaults", "font", "face"],
+    jsonPath: ['profiles', 'defaults', 'font', 'face'],
     skipIfKeep: true,
   },
   {
-    id: "fontSize",
-    group: "Appearance",
-    label: "Font size",
-    hint: "Text size in points",
+    id: 'fontSize',
+    group: 'Appearance',
+    label: 'Font size',
+    hint: 'Text size in points',
     prompt: {
-      kind: "select",
-      message: "Choose a font size",
+      kind: 'select',
+      message: 'Choose a font size',
       options: fontSizeOptions,
-      initialValue: "12",
+      initialValue: '12',
     },
     summarize: (value) => `${String(value)} pt`,
   },
   {
-    id: "cursorShape",
-    group: "Appearance",
-    label: "Cursor",
-    hint: "Shape of the text cursor",
+    id: 'cursorShape',
+    group: 'Appearance',
+    label: 'Cursor',
+    hint: 'Shape of the text cursor',
     prompt: {
-      kind: "select",
-      message: "Choose a cursor shape",
+      kind: 'select',
+      message: 'Choose a cursor shape',
       options: cursorOptions,
-      initialValue: "keep",
+      initialValue: 'keep',
     },
     summarize: (value) => labelOf(cursorOptions, String(value)),
   },
   {
-    id: "colorScheme",
-    group: "Colors",
-    label: "Color scheme",
-    hint: "ANSI palette for text and accents",
+    id: 'colorScheme',
+    group: 'Colors',
+    label: 'Color scheme',
+    hint: 'ANSI palette for text and accents',
     prompt: {
-      kind: "select",
-      message: "Choose a color scheme",
+      kind: 'select',
+      message: 'Choose a color scheme',
       options: schemeOptions,
-      initialValue: "keep",
+      initialValue: 'keep',
     },
     summarize: (value) => labelOf(schemeOptions, String(value)),
   },
   {
-    id: "launchMode",
-    group: "Window & tabs",
-    label: "Launch mode",
-    hint: "How the window opens",
+    id: 'launchMode',
+    group: 'Window & tabs',
+    label: 'Launch mode',
+    hint: 'How the window opens',
     prompt: {
-      kind: "select",
-      message: "How should Windows Terminal open?",
+      kind: 'select',
+      message: 'How should Windows Terminal open?',
       options: launchModeOptions,
-      initialValue: "default",
+      initialValue: 'default',
     },
     summarize: (value) => labelOf(launchModeOptions, String(value)),
   },
   {
-    id: "appTheme",
-    group: "Window & tabs",
-    label: "Application theme",
-    hint: "Light, dark, or follow Windows",
+    id: 'appTheme',
+    group: 'Window & tabs',
+    label: 'Application theme',
+    hint: 'Light, dark, or follow Windows',
     prompt: {
-      kind: "select",
-      message: "Choose the application theme",
+      kind: 'select',
+      message: 'Choose the application theme',
       options: appThemeOptions,
-      initialValue: "system",
+      initialValue: 'system',
     },
     summarize: (value) => labelOf(appThemeOptions, String(value)),
   },
   {
-    id: "tabLayout",
-    group: "Window & tabs",
-    label: "Tab bar",
-    hint: "Where the tab row is displayed",
+    id: 'tabLayout',
+    group: 'Window & tabs',
+    label: 'Tab bar',
+    hint: 'Where the tab row is displayed',
     prompt: {
-      kind: "select",
-      message: "Where should the tab bar live?",
+      kind: 'select',
+      message: 'Where should the tab bar live?',
       options: tabLayoutOptions,
-      initialValue: "titlebar",
+      initialValue: 'titlebar',
     },
     summarize: (value) => labelOf(tabLayoutOptions, String(value)),
   },
   {
-    id: "tabWidthMode",
-    group: "Window & tabs",
-    label: "Tab width",
-    hint: "How tab widths are calculated",
+    id: 'tabWidthMode',
+    group: 'Window & tabs',
+    label: 'Tab width',
+    hint: 'How tab widths are calculated',
     prompt: {
-      kind: "select",
-      message: "How should tabs be sized?",
+      kind: 'select',
+      message: 'How should tabs be sized?',
       options: tabWidthOptions,
-      initialValue: "equal",
+      initialValue: 'equal',
     },
     summarize: (value) => labelOf(tabWidthOptions, String(value)),
   },
   {
-    id: "icon",
-    group: "Profile",
-    label: "Profile icon",
-    hint: "Icon style for your profile",
+    id: 'icon',
+    group: 'Profile',
+    label: 'Profile icon',
+    hint: 'Icon style for your profile',
     prompt: {
-      kind: "select",
-      message: "Pick a profile icon style",
+      kind: 'select',
+      message: 'Pick a profile icon style',
       options: iconOptions,
-      initialValue: "classic",
+      initialValue: 'classic',
     },
     summarize: (value) => labelOf(iconOptions, String(value)),
   },
   {
-    id: "tabTitle",
-    group: "Profile",
-    label: "Tab title",
-    hint: "Custom title shown on the tab",
+    id: 'tabTitle',
+    group: 'Profile',
+    label: 'Tab title',
+    hint: 'Custom title shown on the tab',
     prompt: {
-      kind: "text",
-      message: "Custom tab title (leave empty for automatic)",
-      placeholder: "pimpt",
-      initialValue: "",
+      kind: 'text',
+      message: 'Custom tab title (leave empty for automatic)',
+      placeholder: 'pimpt',
+      initialValue: '',
     },
-    summarize: (value) => (String(value).trim() ? String(value) : "Automatic"),
+    summarize: (value) => (String(value).trim() ? String(value) : 'Automatic'),
   },
   {
-    id: "startingDirectory",
-    group: "Features",
-    label: "Starting directory",
-    hint: "Default shell folder",
+    id: 'startingDirectory',
+    group: 'Features',
+    label: 'Starting directory',
+    hint: 'Default shell folder',
     prompt: {
-      kind: "text",
-      message: "Enter or paste a path; relative paths start in your user folder",
-      placeholder: "C:\\Users\\you\\Projects",
-      initialValue: "",
+      kind: 'text',
+      message: 'Enter or paste a path; relative paths start in your user folder',
+      placeholder: 'C:\\Users\\you\\Projects',
+      initialValue: '',
     },
-    summarize: (value) => (String(value).trim() ? String(value) : "Default"),
-    jsonPath: ["profiles", "defaults", "startingDirectory"],
+    summarize: (value) => (String(value).trim() ? String(value) : 'Default'),
+    jsonPath: ['profiles', 'defaults', 'startingDirectory'],
   },
   {
-    id: "copyOnSelect",
-    group: "Behavior",
-    label: "Copy on select",
-    hint: "Copy text as soon as it is selected",
+    id: 'copyOnSelect',
+    group: 'Behavior',
+    label: 'Copy on select',
+    hint: 'Copy text as soon as it is selected',
     prompt: {
-      kind: "confirm",
-      message: "Copy text automatically when selected?",
+      kind: 'confirm',
+      message: 'Copy text automatically when selected?',
       initialValue: false,
     },
     summarize: onOff,
   },
   {
-    id: "confirmClose",
-    group: "Behavior",
-    label: "Confirm close",
-    hint: "Ask before closing multiple tabs",
+    id: 'confirmClose',
+    group: 'Behavior',
+    label: 'Confirm close',
+    hint: 'Ask before closing multiple tabs',
     prompt: {
-      kind: "confirm",
-      message: "Confirm before closing a window with many tabs?",
+      kind: 'confirm',
+      message: 'Confirm before closing a window with many tabs?',
       initialValue: true,
     },
     summarize: onOff,
   },
   {
-    id: "terminalIcons",
-    group: "Appearance",
-    label: "PowerShell file icons",
-    hint: "File icons in PowerShell",
+    id: 'terminalIcons',
+    group: 'Appearance',
+    label: 'PowerShell file icons',
+    hint: 'File icons in PowerShell',
     prompt: {
-      kind: "confirm",
+      kind: 'confirm',
       message:
-        "Enable PowerShell file icons? This installs Terminal-Icons and Hack Nerd Font Mono if needed, adds it to your PowerShell profile, and switches Windows Terminal to that font.",
+        'Enable PowerShell file icons? This installs Terminal-Icons and Hack Nerd Font Mono if needed, adds it to your PowerShell profile, and switches Windows Terminal to that font.',
       initialValue: true,
     },
     summarize: onOff,
   },
   {
-    id: "historyPreview",
-    group: "Features",
-    label: "Command history preview",
-    hint: "Browse recent commands",
+    id: 'historyPreview',
+    group: 'Features',
+    label: 'Command history preview',
+    hint: 'Browse recent commands',
     prompt: {
-      kind: "confirm",
+      kind: 'confirm',
       message:
-        "Enable a scrollable PowerShell history list? This installs PSReadLine if needed and lets the Up and Down arrows browse the visible history suggestions.",
+        'Enable a scrollable PowerShell history list? This installs PSReadLine if needed and lets the Up and Down arrows browse the visible history suggestions.',
       initialValue: true,
     },
     summarize: onOff,
   },
   {
-    id: "lazyGit",
-    group: "Features",
-    label: "Lazy Git (lg)",
-    hint: "Interactive Git UI like lazygit",
+    id: 'lazyGit',
+    group: 'Features',
+    label: 'Lazy Git (lg)',
+    hint: 'Interactive Git UI like lazygit',
     prompt: {
-      kind: "confirm",
+      kind: 'confirm',
       message:
-        "Enable Lazy Git? Adds an interactive lg command (status, stage, commit, push/pull, branches, log, stash) and Tab completion for Git commands, branches, and files.",
+        'Enable Lazy Git? Adds an interactive lg command (status, stage, commit, push/pull, branches, log, stash) and Tab completion for Git commands, branches, and files.',
       initialValue: true,
     },
     summarize: onOff,
   },
   {
-    id: "crossDriveCd",
-    group: "Features",
-    label: "Smart cd (zoxide-style)",
-    hint: "Remember folders and jump by keyword",
+    id: 'crossDriveCd',
+    group: 'Features',
+    label: 'Smart cd (zoxide-style)',
+    hint: 'Remember folders and jump by keyword',
     prompt: {
-      kind: "confirm",
+      kind: 'confirm',
       message:
-        "Enable smart cd? Remembers folders you visit (zoxide-style frecency), replaces cd so you can jump with keywords like cd pimpt, supports cd D / cd D: for drives, and adds cdi for interactive picks. Set-Location remains available.",
+        'Enable smart cd? Remembers folders you visit (zoxide-style frecency), replaces cd so you can jump with keywords like cd pimpt, supports cd D / cd D: for drives, and adds cdi for interactive picks. Set-Location remains available.',
       initialValue: true,
     },
     summarize: onOff,
   },
   {
-    id: "treeListing",
-    group: "Features",
-    label: "Tree-style ls",
-    hint: "Show files in a colored directory tree",
+    id: 'treeListing',
+    group: 'Features',
+    label: 'Tree-style ls',
+    hint: 'Show files in a colored directory tree',
     prompt: {
-      kind: "confirm",
+      kind: 'confirm',
       message:
-        "Show directory contents as a colored tree when you run ls? Output is capped at 50 entries by default. Use -Limit or -All for more. Get-ChildItem remains available as gci.",
+        'Show directory contents as a colored tree when you run ls? Output is capped at 50 entries by default. Use -Limit or -All for more. Get-ChildItem remains available as gci.',
       initialValue: true,
     },
     summarize: onOff,
   },
   {
-    id: "hidePowerShellBanner",
-    group: "Appearance",
-    label: "Hide PowerShell startup banner",
-    hint: "Hide the welcome text",
+    id: 'powershellAliases',
+    group: 'Features',
+    label: 'PowerShell aliases',
+    hint: 'Useful shortcuts like ll, la, .., grep',
     prompt: {
-      kind: "confirm",
-      message: "Hide the Windows PowerShell startup banner?",
+      kind: 'confirm',
+      message:
+        'Add useful PowerShell aliases? Adds ll (detailed listing), la (all files), .. (up one level), ... (up two levels), grep (search text), wget / curl (download files).',
       initialValue: true,
     },
     summarize: onOff,
   },
   {
-    id: "focusFollowMouse",
-    group: "Behavior",
-    label: "Focus follows mouse",
-    hint: "Focus panes on hover",
+    id: 'hidePowerShellBanner',
+    group: 'Appearance',
+    label: 'Hide PowerShell startup banner',
+    hint: 'Hide the welcome text',
     prompt: {
-      kind: "confirm",
-      message: "Focus panes when hovering with the mouse?",
+      kind: 'confirm',
+      message: 'Hide the Windows PowerShell startup banner?',
+      initialValue: true,
+    },
+    summarize: onOff,
+  },
+  {
+    id: 'focusFollowMouse',
+    group: 'Behavior',
+    label: 'Focus follows mouse',
+    hint: 'Focus panes on hover',
+    prompt: {
+      kind: 'confirm',
+      message: 'Focus panes when hovering with the mouse?',
       initialValue: false,
     },
     summarize: onOff,
   },
   {
-    id: "trimPaste",
-    group: "Behavior",
-    label: "Trim paste",
-    hint: "Remove trailing whitespace when pasting",
+    id: 'trimPaste',
+    group: 'Behavior',
+    label: 'Trim paste',
+    hint: 'Remove trailing whitespace when pasting',
     prompt: {
-      kind: "confirm",
-      message: "Trim trailing whitespace when pasting?",
+      kind: 'confirm',
+      message: 'Trim trailing whitespace when pasting?',
       initialValue: true,
     },
     summarize: onOff,
   },
 ];
-
-export const groupOrder: SettingGroup[] = [
-  "Appearance",
-  "Colors",
-  "Window & tabs",
-  "Profile",
-  "Behavior",
-  "Features",
-  "Other",
-];
-
-export function buildGroupedOptions(): Record<string, Choice[]> {
-  const grouped: Record<string, Choice[]> = {};
-
-  for (const group of groupOrder) {
-    grouped[group] = settings
-      .filter((setting) => setting.group === group)
-      .map((setting) => ({
-        value: setting.id,
-        label: setting.label,
-        hint: setting.hint,
-      }));
-  }
-
-  return grouped;
-}

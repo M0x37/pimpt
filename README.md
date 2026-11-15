@@ -33,6 +33,8 @@ pimpt --help
 pimpt --version
 ```
 
+When you start `pimpt`, the current version number is shown right below the banner.
+
 The installer detects the Windows Terminal settings file for the Stable, Preview, or Canary release. Select an area, choose settings, review the summary, and confirm to apply the changes.
 
 ## Available options
@@ -69,6 +71,18 @@ ls .\src -Force
 
 `-All` disables the entry limit and may produce a large amount of output.
 
+### Installer
+
+Install common development tools directly from pimpt via [winget](https://learn.microsoft.com/windows/package-manager/):
+
+- **Git** — version control
+- **Python** — programming language
+- **Node.js** — JavaScript runtime
+- **Visual Studio Code** — code editor
+- **Docker Desktop** — container platform
+
+Select “Installer” from the main menu, pick a program, and confirm. After installation you return to the main menu automatically.
+
 ## Settings safety
 
 - Windows Terminal settings are edited as JSONC, preserving comments and formatting where possible.
@@ -85,7 +99,6 @@ npm test
 npm run typecheck
 npm run build
 ```
-
 
 ## License
 
