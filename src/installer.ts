@@ -767,15 +767,16 @@ export async function runInstaller(): Promise<void> {
         );
         note(`✓ ${program.label} installed successfully.`, 'Installer');
       } catch (error) {
-        const message = String(error);
+        const execError = error as { stdout?: string; stderr?: string };
+        const output = `${execError.stdout ?? ''} ${execError.stderr ?? ''} ${String(error)}`;
         if (
-          message.includes('already installed') ||
-          message.includes('No newer package versions are available') ||
-          message.includes('No available upgrade found')
+          output.includes('already installed') ||
+          output.includes('No newer package versions are available') ||
+          output.includes('No available upgrade found')
         ) {
           note(`✓ ${program.label} is already installed.`, 'Installer');
         } else {
-          note(`✗ Failed to install ${program.label}: ${message}`, 'Installer');
+          note(`✗ Failed to install ${program.label}: ${String(error)}`, 'Installer');
         }
       }
       continue;
