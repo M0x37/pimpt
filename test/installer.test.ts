@@ -315,9 +315,24 @@ describe('runInstaller', () => {
         hint: 'Preset or custom color',
       },
       {
+        value: 'backgroundImage',
+        label: 'Background image',
+        hint: 'Path to a local image',
+      },
+      {
         value: 'fontFace',
         label: 'Font',
         hint: 'Terminal font',
+      },
+      {
+        value: 'fontSize',
+        label: 'Font size',
+        hint: 'Text size in points',
+      },
+      {
+        value: 'cursorShape',
+        label: 'Cursor',
+        hint: 'Shape of the text cursor',
       },
       {
         value: 'terminalIcons',

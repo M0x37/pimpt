@@ -205,6 +205,7 @@ export const settings: SettingDefinition[] = [
       initialValue: '',
     },
     summarize: (value) => (String(value).trim() ? String(value) : 'Not set'),
+    jsonPath: ['profiles', 'defaults', 'backgroundImage'],
   },
   {
     id: 'fontFace',
@@ -233,6 +234,7 @@ export const settings: SettingDefinition[] = [
       initialValue: '12',
     },
     summarize: (value) => `${String(value)} pt`,
+    jsonPath: ['profiles', 'defaults', 'fontSize'],
   },
   {
     id: 'cursorShape',
@@ -246,6 +248,8 @@ export const settings: SettingDefinition[] = [
       initialValue: 'keep',
     },
     summarize: (value) => labelOf(cursorOptions, String(value)),
+    jsonPath: ['profiles', 'defaults', 'cursorShape'],
+    skipIfKeep: true,
   },
   {
     id: 'colorScheme',
@@ -259,6 +263,8 @@ export const settings: SettingDefinition[] = [
       initialValue: 'keep',
     },
     summarize: (value) => labelOf(schemeOptions, String(value)),
+    jsonPath: ['profiles', 'defaults', 'colorScheme'],
+    skipIfKeep: true,
   },
   {
     id: 'launchMode',
@@ -272,6 +278,7 @@ export const settings: SettingDefinition[] = [
       initialValue: 'default',
     },
     summarize: (value) => labelOf(launchModeOptions, String(value)),
+    jsonPath: ['profiles', 'defaults', 'launchMode'],
   },
   {
     id: 'appTheme',
@@ -285,6 +292,7 @@ export const settings: SettingDefinition[] = [
       initialValue: 'system',
     },
     summarize: (value) => labelOf(appThemeOptions, String(value)),
+    jsonPath: ['profiles', 'defaults', 'theme'],
   },
   {
     id: 'tabLayout',
@@ -298,6 +306,7 @@ export const settings: SettingDefinition[] = [
       initialValue: 'titlebar',
     },
     summarize: (value) => labelOf(tabLayoutOptions, String(value)),
+    jsonPath: ['profiles', 'defaults', 'tabLayout'],
   },
   {
     id: 'tabWidthMode',
@@ -311,6 +320,7 @@ export const settings: SettingDefinition[] = [
       initialValue: 'equal',
     },
     summarize: (value) => labelOf(tabWidthOptions, String(value)),
+    jsonPath: ['profiles', 'defaults', 'tabWidthMode'],
   },
   {
     id: 'icon',
@@ -324,6 +334,7 @@ export const settings: SettingDefinition[] = [
       initialValue: 'classic',
     },
     summarize: (value) => labelOf(iconOptions, String(value)),
+    jsonPath: ['profiles', 'defaults', 'icon'],
   },
   {
     id: 'tabTitle',
@@ -337,6 +348,7 @@ export const settings: SettingDefinition[] = [
       initialValue: '',
     },
     summarize: (value) => (String(value).trim() ? String(value) : 'Automatic'),
+    jsonPath: ['profiles', 'defaults', 'tabTitle'],
   },
   {
     id: 'startingDirectory',
@@ -363,6 +375,7 @@ export const settings: SettingDefinition[] = [
       initialValue: false,
     },
     summarize: onOff,
+    jsonPath: ['profiles', 'defaults', 'copyOnSelect'],
   },
   {
     id: 'confirmClose',
@@ -375,6 +388,7 @@ export const settings: SettingDefinition[] = [
       initialValue: true,
     },
     summarize: onOff,
+    jsonPath: ['confirmClose'],
   },
   {
     id: 'terminalIcons',
@@ -477,6 +491,7 @@ export const settings: SettingDefinition[] = [
       initialValue: false,
     },
     summarize: onOff,
+    jsonPath: ['profiles', 'defaults', 'focusFollowMouse'],
   },
   {
     id: 'trimPaste',
@@ -489,5 +504,6 @@ export const settings: SettingDefinition[] = [
       initialValue: true,
     },
     summarize: onOff,
+    jsonPath: ['profiles', 'defaults', 'trimPaste'],
   },
 ];

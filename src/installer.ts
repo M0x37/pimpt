@@ -621,6 +621,7 @@ async function applySettings(
         );
       }
     } else {
+      if (typeof value === 'string' && value.trim() === '') continue;
       content = setSetting(content, setting.jsonPath, value);
     }
   }
