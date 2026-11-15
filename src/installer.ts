@@ -503,6 +503,58 @@ function readConfiguredAnswers(settingsPath: string | undefined): Record<string,
       answers.background = defaults.background;
     }
 
+    if ('backgroundImage' in defaults && typeof defaults.backgroundImage === 'string') {
+      answers.backgroundImage = defaults.backgroundImage;
+    }
+
+    if ('fontSize' in defaults && typeof defaults.fontSize === 'string') {
+      answers.fontSize = defaults.fontSize;
+    }
+
+    if ('cursorShape' in defaults && typeof defaults.cursorShape === 'string') {
+      answers.cursorShape = defaults.cursorShape;
+    }
+
+    if ('colorScheme' in defaults && typeof defaults.colorScheme === 'string') {
+      answers.colorScheme = defaults.colorScheme;
+    }
+
+    if ('launchMode' in defaults && typeof defaults.launchMode === 'string') {
+      answers.launchMode = defaults.launchMode;
+    }
+
+    if ('theme' in defaults && typeof defaults.theme === 'string') {
+      answers.appTheme = defaults.theme;
+    }
+
+    if ('tabLayout' in defaults && typeof defaults.tabLayout === 'string') {
+      answers.tabLayout = defaults.tabLayout;
+    }
+
+    if ('tabWidthMode' in defaults && typeof defaults.tabWidthMode === 'string') {
+      answers.tabWidthMode = defaults.tabWidthMode;
+    }
+
+    if ('icon' in defaults && typeof defaults.icon === 'string') {
+      answers.icon = defaults.icon;
+    }
+
+    if ('tabTitle' in defaults && typeof defaults.tabTitle === 'string') {
+      answers.tabTitle = defaults.tabTitle;
+    }
+
+    if ('copyOnSelect' in defaults && typeof defaults.copyOnSelect === 'boolean') {
+      answers.copyOnSelect = defaults.copyOnSelect;
+    }
+
+    if ('focusFollowMouse' in defaults && typeof defaults.focusFollowMouse === 'boolean') {
+      answers.focusFollowMouse = defaults.focusFollowMouse;
+    }
+
+    if ('trimPaste' in defaults && typeof defaults.trimPaste === 'boolean') {
+      answers.trimPaste = defaults.trimPaste;
+    }
+
     const defaultStartingDirectory =
       'startingDirectory' in defaults && typeof defaults.startingDirectory === 'string'
         ? defaults.startingDirectory
@@ -537,6 +589,10 @@ function readConfiguredAnswers(settingsPath: string | undefined): Record<string,
     }
   }
 
+  if ('confirmClose' in parsed && typeof parsed.confirmClose === 'boolean') {
+    answers.confirmClose = parsed.confirmClose;
+  }
+
   const powerShellProfiles = getWindowsPowerShellProfiles(content);
   if (
     powerShellProfiles.length > 0 &&
@@ -560,6 +616,15 @@ async function applySettings(
 ): Promise<void> {
   const terminalIconsEnabled = answers.terminalIcons === true;
   const hidePowerShellBanner = answers.hidePowerShellBanner === true;
+
+  // Ein Hintergrundbild soll nicht durch die Fenstertansparenz
+  // durchscheinen. Wenn eins gesetzt ist, wird Transparenz ausgestellt.
+  if (
+    typeof answers.backgroundImage === 'string' &&
+    answers.backgroundImage.trim() !== ''
+  ) {
+    answers.transparency = 'off';
+  }
 
   if (!settingsPath) {
     if (terminalIconsEnabled) {
