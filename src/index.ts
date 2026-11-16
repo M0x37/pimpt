@@ -16,16 +16,19 @@ function printHelp(): void {
 ${pc.bold(pc.cyan('pimpt'))} ${pc.dim('— interactive Windows Terminal setup assistant')}
 
 ${pc.bold('Usage')}
-  pimpt              Start the interactive installer
-  pimpt --help       Show this help
-  pimpt --version    Show the installed version
+  pimpt                   Start the interactive installer
+  pimpt --apply <path>    Apply settings non-interactively from a JSON config file
+  pimpt --help            Show this help
+  pimpt --version         Show the installed version
 
 ${pc.bold('Status')}
   Preview: preferences are collected, but settings.json is not modified yet.
+  With --apply, preferences are read from the config file and written to
+  settings.json without any interactive prompts.
 `);
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   if (args.includes('--help') || args.includes('-h')) {
@@ -35,6 +38,19 @@ async function main(): Promise<void> {
 
   if (args.includes('--version') || args.includes('-v')) {
     console.log(`pimpt ${readVersion()}`);
+    return;
+  }
+
+  const applyIndex = args.indexOf('--apply');
+  if (applyIndex !== -1) {
+    const configPath = args[applyIndex + 1];
+    if (!configPath) {
+      console.error('Missing value for --apply. Usage: pimpt --apply <path>');
+      printHelp();
+      process.exitCode = 1;
+      return;
+    }
+    await runInstaller(configPath);
     return;
   }
 
@@ -49,10 +65,12 @@ async function main(): Promise<void> {
   await runInstaller();
 }
 
-try {
-  await main();
-} catch (error) {
-  console.error(pc.red('pimpt failed:'));
-  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
-  process.exitCode = 1;
+if (import.meta.main) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(pc.red('pimpt failed:'));
+    console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
+    process.exitCode = 1;
+  }
 }

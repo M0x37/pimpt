@@ -11,7 +11,7 @@ import {
   text,
 } from '@clack/prompts';
 import { execFileSync, spawn } from 'node:child_process';
-import { statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { parse, type ParseError } from 'jsonc-parser';
 import { win32 as pathWin32 } from 'node:path';
 import pc from 'picocolors';
@@ -617,17 +617,15 @@ function readConfiguredAnswers(settingsPath: string | undefined): Record<string,
  */
 async function applySettings(
   answers: Record<string, SettingValue>,
-  settingsPath: string | undefined = findSettingsPath()
+  settingsPath: string | undefined = findSettingsPath(),
+  options: { dryRun?: boolean } = {}
 ): Promise<void> {
   const terminalIconsEnabled = answers.terminalIcons === true;
   const hidePowerShellBanner = answers.hidePowerShellBanner === true;
 
   // Ein Hintergrundbild soll nicht durch die Fenstertansparenz
   // durchscheinen. Wenn eins gesetzt ist, wird Transparenz ausgestellt.
-  if (
-    typeof answers.backgroundImage === 'string' &&
-    answers.backgroundImage.trim() !== ''
-  ) {
+  if (typeof answers.backgroundImage === 'string' && answers.backgroundImage.trim() !== '') {
     answers.transparency = 'off';
   }
 
@@ -733,24 +731,109 @@ async function applySettings(
     }
   }
 
-  if (terminalIconsEnabled) {
+  if (terminalIconsEnabled && !options.dryRun) {
     await installNerdFont();
     installTerminalIconsModule();
+    addTerminalIconsToPowerShellProfile();
   }
 
   const dirty = content !== originalContent;
   if (dirty) {
-    const backupPath = createSettingsBackup(settingsPath);
-    log.info(pc.dim(`Backup created at ${backupPath}`));
-    writeSettingsFile(settingsPath, content);
-  }
-
-  if (terminalIconsEnabled) {
-    addTerminalIconsToPowerShellProfile();
+    if (options.dryRun) {
+      log.info(pc.dim('Dry run — the following settings.json would be written:'));
+      console.log(content);
+    } else {
+      const backupPath = createSettingsBackup(settingsPath);
+      log.info(pc.dim(`Backup created at ${backupPath}`));
+      writeSettingsFile(settingsPath, content);
+    }
   }
 }
 
-export async function runInstaller(): Promise<void> {
+/**
+ * Wendet eine Konfigurationsdatei nicht-interaktiv an.
+ * Liest eine JSON-Datei mit einem `answers`-Objekt und schreibt die
+ * Antworten in settings.json, ohne @clack/prompts zu verwenden.
+ */
+export async function runNonInteractiveInstaller(
+  configPath: string,
+  options: { dryRun?: boolean } = {}
+): Promise<void> {
+  if (process.platform !== 'win32') {
+    log.info(
+      pc.dim(
+        'pimpt is designed for Windows Terminal on Windows. Skipping --apply on this platform.'
+      )
+    );
+    return;
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(configPath, 'utf8');
+  } catch (error) {
+    throw new Error(
+      `Cannot read config file "${configPath}": ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON in config file "${configPath}": ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Config file "${configPath}" must contain a JSON object.`);
+  }
+
+  const answers = (parsed as { answers?: unknown }).answers;
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    throw new Error(`Config file "${configPath}" must contain an "answers" object.`);
+  }
+
+  const answerMap = answers as Record<string, SettingValue>;
+  const knownIds = new Set(settings.map((setting) => setting.id));
+  for (const key of Object.keys(answerMap)) {
+    if (!knownIds.has(key)) {
+      log.warn(pc.yellow(`Unknown setting key ignored: ${key}`));
+    }
+  }
+
+  const settingsPath = findSettingsPath();
+  await applySettings(answerMap, settingsPath, { dryRun: options.dryRun ?? false });
+
+  if (!options.dryRun) {
+    if (answerMap.historyPreview === true) {
+      installPSReadLineModule();
+      addHistoryPreviewToPowerShellProfile();
+    }
+    if (answerMap.lazyGit === true) {
+      addLazyGitToPowerShellProfile();
+    }
+    if (answerMap.crossDriveCd === true) {
+      addCrossDriveCdToPowerShellProfile();
+    }
+    if (answerMap.treeListing === true) {
+      addTreeListingToPowerShellProfile();
+    }
+    if (answerMap.powershellAliases === true) {
+      addPowerShellAliasesToPowerShellProfile();
+    }
+  }
+
+  renderSummary(answerMap);
+}
+
+export async function runInstaller(applyPath?: string): Promise<void> {
+  if (applyPath !== undefined) {
+    await runNonInteractiveInstaller(applyPath);
+    return;
+  }
+
   console.log(pc.cyan(BANNER));
   intro(pc.bold('Pimp up your Terminal.'));
 
