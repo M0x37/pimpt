@@ -85,11 +85,14 @@ const fontOptions: Choice[] = [
   { value: 'IBM Plex Mono', label: 'IBM Plex Mono', hint: 'Technical, readable monospace' },
 ];
 
-const fontSizeOptions: Choice[] = ['10', '11', '12', '14', '16', '18'].map((value) => ({
-  value,
-  label: `${value} pt`,
-  hint: 'Points',
-}));
+const fontSizeOptions: Choice[] = [
+  { value: 'keep', label: 'Keep current', hint: 'Use the configured size' },
+  ...['10', '11', '12', '14', '16', '18'].map((value) => ({
+    value,
+    label: `${value} pt`,
+    hint: 'Points',
+  })),
+];
 
 const cursorOptions: Choice[] = [
   { value: 'keep', label: 'Keep current', hint: 'Use the configured cursor' },
@@ -109,6 +112,7 @@ const schemeOptions: Choice[] = [
 ];
 
 const launchModeOptions: Choice[] = [
+  { value: 'keep', label: 'Keep current', hint: 'Use the configured mode' },
   { value: 'default', label: 'Windowed', hint: 'Normal window' },
   { value: 'maximized', label: 'Maximized', hint: 'Fill the screen' },
   { value: 'fullscreen', label: 'Fullscreen', hint: 'Hide the window frame' },
@@ -121,23 +125,27 @@ const launchModeOptions: Choice[] = [
 ];
 
 const appThemeOptions: Choice[] = [
+  { value: 'keep', label: 'Keep current', hint: 'Use the configured theme' },
   { value: 'system', label: 'System', hint: 'Follow Windows' },
   { value: 'dark', label: 'Dark', hint: 'Always dark' },
   { value: 'light', label: 'Light', hint: 'Always light' },
 ];
 
 const tabLayoutOptions: Choice[] = [
+  { value: 'keep', label: 'Keep current', hint: 'Use the configured layout' },
   { value: 'titlebar', label: 'Tabs in titlebar', hint: 'Compact, modern layout' },
   { value: 'separate', label: 'Separate tab row', hint: 'Tabs below the titlebar' },
 ];
 
 const tabWidthOptions: Choice[] = [
+  { value: 'keep', label: 'Keep current', hint: 'Use the configured width' },
   { value: 'equal', label: 'Equal', hint: 'All tabs share the width' },
   { value: 'titleLength', label: 'Title length', hint: 'Width fits the title' },
   { value: 'compact', label: 'Compact', hint: 'Shrink to fit' },
 ];
 
 const iconOptions: Choice[] = [
+  { value: 'keep', label: 'Keep current', hint: 'Use the configured icon' },
   { value: 'classic', label: 'Classic terminal', hint: 'Monochrome prompt glyph' },
   { value: 'rocket', label: 'Rocket', hint: 'Launch-ready' },
   { value: 'bolt', label: 'Bolt', hint: 'Fast and loud' },
@@ -231,10 +239,11 @@ export const settings: SettingDefinition[] = [
       kind: 'select',
       message: 'Choose a font size',
       options: fontSizeOptions,
-      initialValue: '12',
+      initialValue: 'keep',
     },
     summarize: (value) => `${String(value)} pt`,
     jsonPath: ['profiles', 'defaults', 'fontSize'],
+    skipIfKeep: true,
   },
   {
     id: 'cursorShape',
@@ -275,10 +284,11 @@ export const settings: SettingDefinition[] = [
       kind: 'select',
       message: 'How should Windows Terminal open?',
       options: launchModeOptions,
-      initialValue: 'default',
+      initialValue: 'keep',
     },
     summarize: (value) => labelOf(launchModeOptions, String(value)),
     jsonPath: ['profiles', 'defaults', 'launchMode'],
+    skipIfKeep: true,
   },
   {
     id: 'appTheme',
@@ -289,10 +299,11 @@ export const settings: SettingDefinition[] = [
       kind: 'select',
       message: 'Choose the application theme',
       options: appThemeOptions,
-      initialValue: 'system',
+      initialValue: 'keep',
     },
     summarize: (value) => labelOf(appThemeOptions, String(value)),
     jsonPath: ['profiles', 'defaults', 'theme'],
+    skipIfKeep: true,
   },
   {
     id: 'tabLayout',
@@ -303,10 +314,11 @@ export const settings: SettingDefinition[] = [
       kind: 'select',
       message: 'Where should the tab bar live?',
       options: tabLayoutOptions,
-      initialValue: 'titlebar',
+      initialValue: 'keep',
     },
     summarize: (value) => labelOf(tabLayoutOptions, String(value)),
     jsonPath: ['profiles', 'defaults', 'tabLayout'],
+    skipIfKeep: true,
   },
   {
     id: 'tabWidthMode',
@@ -317,10 +329,11 @@ export const settings: SettingDefinition[] = [
       kind: 'select',
       message: 'How should tabs be sized?',
       options: tabWidthOptions,
-      initialValue: 'equal',
+      initialValue: 'keep',
     },
     summarize: (value) => labelOf(tabWidthOptions, String(value)),
     jsonPath: ['profiles', 'defaults', 'tabWidthMode'],
+    skipIfKeep: true,
   },
   {
     id: 'icon',
@@ -331,10 +344,11 @@ export const settings: SettingDefinition[] = [
       kind: 'select',
       message: 'Pick a profile icon style',
       options: iconOptions,
-      initialValue: 'classic',
+      initialValue: 'keep',
     },
     summarize: (value) => labelOf(iconOptions, String(value)),
     jsonPath: ['profiles', 'defaults', 'icon'],
+    skipIfKeep: true,
   },
   {
     id: 'tabTitle',

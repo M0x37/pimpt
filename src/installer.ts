@@ -207,12 +207,14 @@ async function askSetting(
   const prompt = setting.prompt;
 
   if (prompt.kind === 'select') {
+    const selectInitialValue =
+      currentValue === undefined ? prompt.initialValue : String(currentValue);
     const selectValue = async () =>
       bail(
         await select<string>({
           message: prompt.message,
           options: prompt.options,
-          initialValue: prompt.initialValue,
+          initialValue: selectInitialValue,
         })
       );
 
@@ -689,8 +691,13 @@ async function applySettings(
         );
       }
     } else {
-      if (typeof value === 'string' && value.trim() === '') continue;
-      content = setSetting(content, setting.jsonPath, value);
+      if (setting.id === 'backgroundImage') {
+        content = setSetting(content, setting.jsonPath, typeof value === 'string' ? value : '');
+      } else if (typeof value === 'string' && value.trim() === '') {
+        continue;
+      } else {
+        content = setSetting(content, setting.jsonPath, value);
+      }
     }
   }
 
