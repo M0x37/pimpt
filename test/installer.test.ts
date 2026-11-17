@@ -299,6 +299,7 @@ describe('runInstaller', () => {
       'Features',
       'Installer',
       'Other',
+      'Remove',
     ]);
     expect(areas.initialValue).toBe('Appearance');
 

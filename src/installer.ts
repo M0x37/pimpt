@@ -11,7 +11,7 @@ import {
   text,
 } from '@clack/prompts';
 import { execFileSync, spawn } from 'node:child_process';
-import { statSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { parse, type ParseError } from 'jsonc-parser';
 import { win32 as pathWin32 } from 'node:path';
 import pc from 'picocolors';
@@ -39,6 +39,7 @@ import {
   installPSReadLineModule,
   installTerminalIconsModule,
   readPowerShellProfileFeatures,
+  removePowerShellProfileBlock,
 } from './powershell.js';
 import { buildSummarySections, normalizeHex } from './summary.js';
 import {
@@ -373,6 +374,16 @@ function getDefaultProfileIndex(content: string): number | undefined {
   return index < 0 ? undefined : index;
 }
 
+function profileDefaultsPath(
+  profileIndex: number | undefined,
+  subPath: string[]
+): (string | number)[] {
+  if (profileIndex !== undefined) {
+    return ['profiles', 'list', profileIndex, ...subPath];
+  }
+  return ['profiles', 'defaults', ...subPath];
+}
+
 function getWindowsPowerShellProfiles(content: string): { index: number; commandline?: string }[] {
   const parseErrors: ParseError[] = [];
   const parsed: unknown = parse(content, parseErrors, {
@@ -617,17 +628,17 @@ function readConfiguredAnswers(settingsPath: string | undefined): Record<string,
  */
 async function applySettings(
   answers: Record<string, SettingValue>,
-  settingsPath: string | undefined = findSettingsPath()
+  settingsPath: string | undefined = findSettingsPath(),
+  options: { dryRun?: boolean; profileIndex: number | undefined } = {
+    profileIndex: undefined,
+  }
 ): Promise<void> {
   const terminalIconsEnabled = answers.terminalIcons === true;
   const hidePowerShellBanner = answers.hidePowerShellBanner === true;
 
   // Ein Hintergrundbild soll nicht durch die Fenstertansparenz
   // durchscheinen. Wenn eins gesetzt ist, wird Transparenz ausgestellt.
-  if (
-    typeof answers.backgroundImage === 'string' &&
-    answers.backgroundImage.trim() !== ''
-  ) {
+  if (typeof answers.backgroundImage === 'string' && answers.backgroundImage.trim() !== '') {
     answers.transparency = 'off';
   }
 
@@ -650,6 +661,7 @@ async function applySettings(
 
   const originalContent = readSettingsFile(settingsPath);
   let content = originalContent;
+  const profileIndex = options.profileIndex;
   for (const setting of settings) {
     const value = answers[setting.id];
     if (value === undefined) continue;
@@ -657,21 +669,39 @@ async function applySettings(
     if (setting.skipIfKeep && value === 'keep') continue;
     if (terminalIconsEnabled && setting.id === 'fontFace') continue;
 
+    let jsonPath = setting.jsonPath;
+    if (
+      profileIndex !== undefined &&
+      jsonPath.length >= 3 &&
+      jsonPath[0] === 'profiles' &&
+      jsonPath[1] === 'defaults'
+    ) {
+      jsonPath = ['profiles', 'list', profileIndex, ...jsonPath.slice(2)] as string[];
+    }
+
     if (setting.id === 'transparency') {
       const opacity = value === 'off' ? 100 : Number(value);
       if (!Number.isInteger(opacity) || opacity < 0 || opacity > 100) {
         throw new Error(`Invalid transparency value: ${String(value)}`);
       }
 
-      content = setSetting(content, setting.jsonPath, opacity);
-      content = setSetting(content, ['profiles', 'defaults', 'useAcrylic'], value !== 'off');
+      content = setSetting(content, jsonPath, opacity);
+      content = setSetting(
+        content,
+        profileDefaultsPath(profileIndex, ['useAcrylic']),
+        value !== 'off'
+      );
       content = setSetting(content, ['useAcrylicInTabRow'], value !== 'off');
     } else if (setting.id === 'background') {
-      content = setSetting(content, setting.jsonPath, value);
-      content = setSetting(content, ['profiles', 'defaults', 'tabColor'], value);
+      content = setSetting(content, jsonPath, value);
+      content = setSetting(
+        content,
+        profileDefaultsPath(profileIndex, ['tabColor']),
+        value
+      );
     } else if (setting.id === 'fontFace') {
       const defaultProfileIndex = getDefaultProfileIndex(content);
-      content = setSetting(content, setting.jsonPath, value);
+      content = setSetting(content, jsonPath, value);
       if (defaultProfileIndex !== undefined) {
         content = setSetting(
           content,
@@ -682,7 +712,7 @@ async function applySettings(
     } else if (setting.id === 'startingDirectory') {
       const defaultProfileIndex = getDefaultProfileIndex(content);
       const startingDirectory = String(value).trim() || undefined;
-      content = setSetting(content, setting.jsonPath, startingDirectory);
+      content = setSetting(content, jsonPath, startingDirectory);
       if (defaultProfileIndex !== undefined) {
         content = setSetting(
           content,
@@ -692,11 +722,11 @@ async function applySettings(
       }
     } else {
       if (setting.id === 'backgroundImage') {
-        content = setSetting(content, setting.jsonPath, typeof value === 'string' ? value : '');
+        content = setSetting(content, jsonPath, typeof value === 'string' ? value : '');
       } else if (typeof value === 'string' && value.trim() === '') {
         continue;
       } else {
-        content = setSetting(content, setting.jsonPath, value);
+        content = setSetting(content, jsonPath, value);
       }
     }
   }
@@ -723,7 +753,7 @@ async function applySettings(
 
   if (terminalIconsEnabled) {
     const defaultProfileIndex = getDefaultProfileIndex(content);
-    content = setSetting(content, ['profiles', 'defaults', 'font', 'face'], NERD_FONT_FAMILY);
+    content = setSetting(content, profileDefaultsPath(profileIndex, ['font', 'face']), NERD_FONT_FAMILY);
     if (defaultProfileIndex !== undefined) {
       content = setSetting(
         content,
@@ -733,24 +763,296 @@ async function applySettings(
     }
   }
 
-  if (terminalIconsEnabled) {
+  if (terminalIconsEnabled && !options.dryRun) {
     await installNerdFont();
     installTerminalIconsModule();
+    addTerminalIconsToPowerShellProfile();
   }
 
   const dirty = content !== originalContent;
   if (dirty) {
-    const backupPath = createSettingsBackup(settingsPath);
-    log.info(pc.dim(`Backup created at ${backupPath}`));
-    writeSettingsFile(settingsPath, content);
-  }
-
-  if (terminalIconsEnabled) {
-    addTerminalIconsToPowerShellProfile();
+    if (options.dryRun) {
+      log.info(pc.dim('Dry run — the following settings.json would be written:'));
+      console.log(content);
+    } else {
+      const backupPath = createSettingsBackup(settingsPath);
+      log.info(pc.dim(`Backup created at ${backupPath}`));
+      writeSettingsFile(settingsPath, content);
+    }
   }
 }
 
-export async function runInstaller(): Promise<void> {
+/**
+ * Wendet eine Konfigurationsdatei nicht-interaktiv an.
+ * Liest eine JSON-Datei mit einem `answers`-Objekt und schreibt die
+ * Antworten in settings.json, ohne @clack/prompts zu verwenden.
+ */
+export async function runNonInteractiveInstaller(
+  configPath: string,
+  options: { dryRun?: boolean; profileIndex: number | undefined } = {
+    profileIndex: undefined,
+  }
+): Promise<void> {
+  if (process.platform !== 'win32') {
+    log.info(
+      pc.dim(
+        'pimpt is designed for Windows Terminal on Windows. Skipping --apply on this platform.'
+      )
+    );
+    return;
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(configPath, 'utf8');
+  } catch (error) {
+    throw new Error(
+      `Cannot read config file "${configPath}": ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON in config file "${configPath}": ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Config file "${configPath}" must contain a JSON object.`);
+  }
+
+  const answers = (parsed as { answers?: unknown }).answers;
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    throw new Error(`Config file "${configPath}" must contain an "answers" object.`);
+  }
+
+  const answerMap = answers as Record<string, SettingValue>;
+  const knownIds = new Set(settings.map((setting) => setting.id));
+  for (const key of Object.keys(answerMap)) {
+    if (!knownIds.has(key)) {
+      log.warn(pc.yellow(`Unknown setting key ignored: ${key}`));
+    }
+  }
+
+  const settingsPath = findSettingsPath();
+  await applySettings(answerMap, settingsPath, {
+    dryRun: options.dryRun ?? false,
+    profileIndex: options.profileIndex ?? undefined,
+  });
+
+  if (!options.dryRun) {
+    if (answerMap.historyPreview === true) {
+      installPSReadLineModule();
+      addHistoryPreviewToPowerShellProfile();
+    }
+    if (answerMap.lazyGit === true) {
+      addLazyGitToPowerShellProfile();
+    }
+    if (answerMap.crossDriveCd === true) {
+      addCrossDriveCdToPowerShellProfile();
+    }
+    if (answerMap.treeListing === true) {
+      addTreeListingToPowerShellProfile();
+    }
+    if (answerMap.powershellAliases === true) {
+      addPowerShellAliasesToPowerShellProfile();
+    }
+  }
+
+  renderSummary(answerMap);
+}
+
+/**
+ * Exportiert die aktuelle pimpt-Konfiguration aus der vorhandenen
+ * Windows Terminal settings.json und den PowerShell-Profil-Features als
+ * JSON-Datei mit einem `answers`-Objekt.
+ * @param configPath - Zielpfad der Config-Datei
+ */
+export async function exportConfig(configPath: string): Promise<void> {
+  const settingsPath = findSettingsPath();
+  const answers: Record<string, SettingValue> = {};
+
+  if (settingsPath) {
+    try {
+      const content = readSettingsFile(settingsPath);
+      const parseErrors: ParseError[] = [];
+      const parsed: unknown = parse(content, parseErrors, { allowTrailingComma: true });
+      if (
+        parseErrors.length === 0 &&
+        parsed !== null &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed)
+      ) {
+        const profiles =
+          'profiles' in parsed && parsed.profiles !== null ? parsed.profiles : undefined;
+        const defaults =
+          profiles !== null &&
+          typeof profiles === 'object' &&
+          !Array.isArray(profiles) && 'defaults' in profiles
+            ? profiles.defaults
+            : undefined;
+        if (defaults !== null && typeof defaults === 'object' && !Array.isArray(defaults)) {
+          const d = defaults as Record<string, unknown>;
+          if (typeof d.opacity === 'number') {
+            answers.transparency =
+              d.opacity === 100 && d.useAcrylic === false ? 'off' : String(d.opacity);
+          }
+          if (typeof d.background === 'string') answers.background = d.background as string;
+          if (typeof d.backgroundImage === 'string')
+            answers.backgroundImage = d.backgroundImage as string;
+          if (
+            d.font !== null &&
+            typeof d.font === 'object' &&
+            !Array.isArray(d.font) &&
+            typeof (d.font as Record<string, unknown>).face === 'string'
+          ) {
+            answers.fontFace = (d.font as Record<string, unknown>).face as string;
+          }
+          if (typeof d.fontSize === 'string' || typeof d.fontSize === 'number') {
+            answers.fontSize = String(d.fontSize);
+          }
+          if (typeof d.cursorShape === 'string') answers.cursorShape = d.cursorShape as string;
+          if (typeof d.colorScheme === 'string') answers.colorScheme = d.colorScheme as string;
+          if (typeof d.launchMode === 'string') answers.launchMode = d.launchMode as string;
+          if (typeof d.theme === 'string') answers.appTheme = d.theme as string;
+          if (typeof d.tabLayout === 'string') answers.tabLayout = d.tabLayout as string;
+          if (typeof d.tabWidthMode === 'string') answers.tabWidthMode = d.tabWidthMode as string;
+          if (typeof d.icon === 'string') answers.icon = d.icon as string;
+          if (typeof d.tabTitle === 'string') answers.tabTitle = d.tabTitle as string;
+          if (typeof d.copyOnSelect === 'boolean') answers.copyOnSelect = d.copyOnSelect as boolean;
+          if (typeof d.focusFollowMouse === 'boolean')
+            answers.focusFollowMouse = d.focusFollowMouse as boolean;
+          if (typeof d.trimPaste === 'boolean') answers.trimPaste = d.trimPaste as boolean;
+          if (typeof d.startingDirectory === 'string') {
+            answers.startingDirectory = d.startingDirectory as string;
+          }
+        }
+        if (typeof (parsed as Record<string, unknown>).confirmClose === 'boolean') {
+          answers.confirmClose = (parsed as Record<string, unknown>).confirmClose as boolean;
+        }
+      }
+    } catch {
+      // Ignore read/parse errors, export what we have.
+    }
+  }
+
+  try {
+    const profileFeatures = readPowerShellProfileFeatures();
+    if (profileFeatures.terminalIcons) answers.terminalIcons = true;
+    if (profileFeatures.historyPreview) answers.historyPreview = true;
+    if (profileFeatures.lazyGit) answers.lazyGit = true;
+    if (profileFeatures.crossDriveCd) answers.crossDriveCd = true;
+    if (profileFeatures.treeListing) answers.treeListing = true;
+    if (profileFeatures.powershellAliases) answers.powershellAliases = true;
+  } catch {
+    // Ignore, export what we have.
+  }
+
+  const content = JSON.stringify({ answers }, null, 2);
+  writeFileSync(configPath, content, 'utf8');
+  log.info(pc.dim(`Configuration exported to ${configPath}`));
+}
+
+/**
+ * Importiert eine pimpt-Konfiguration aus einer JSON-Datei und gibt die
+ * `answers`-Map zurück. Unbekannte Keys werden mit einer Warnung übersprungen.
+ * @param configPath - Pfad der Config-Datei
+ */
+export function importConfig(configPath: string): Record<string, SettingValue> {
+  let raw: string;
+  try {
+    raw = readFileSync(configPath, 'utf8');
+  } catch (error) {
+    throw new Error(
+      `Cannot read config file "${configPath}": ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON in config file "${configPath}": ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Config file "${configPath}" must contain a JSON object.`);
+  }
+
+  const answers = (parsed as { answers?: unknown }).answers;
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    throw new Error(`Config file "${configPath}" must contain an "answers" object.`);
+  }
+
+  const answerMap = answers as Record<string, SettingValue>;
+  const knownIds = new Set(settings.map((setting) => setting.id));
+  for (const key of Object.keys(answerMap)) {
+    if (!knownIds.has(key)) {
+      log.warn(pc.yellow(`Unknown setting key ignored: ${key}`));
+    }
+  }
+
+  return answerMap;
+}
+
+/**
+ * Wendet eine answers-Map direkt an (ohne Config-Datei), z. B. nach einem
+ * `config import`. Schreibt settings.json und wendet PowerShell-Features an.
+ * @param answers - Die anzuwendenden Einstellungen
+ * @param settingsPath - Pfad zur settings.json
+ * @param options - Optionen (z. B. dryRun)
+ */
+export async function applyAnswers(
+  answers: Record<string, SettingValue>,
+  settingsPath: string | undefined,
+  options: { dryRun?: boolean; profileIndex: number | undefined } = {
+    profileIndex: undefined,
+  }
+): Promise<void> {
+  if (process.platform !== 'win32') {
+    log.info(
+      pc.dim('pimpt is designed for Windows Terminal on Windows. Skipping apply on this platform.')
+    );
+    return;
+  }
+  await applySettings(answers, settingsPath, options);
+  if (!options.dryRun) {
+    if (answers.historyPreview === true) {
+      installPSReadLineModule();
+      addHistoryPreviewToPowerShellProfile();
+    }
+    if (answers.lazyGit === true) {
+      addLazyGitToPowerShellProfile();
+    }
+    if (answers.crossDriveCd === true) {
+      addCrossDriveCdToPowerShellProfile();
+    }
+    if (answers.treeListing === true) {
+      addTreeListingToPowerShellProfile();
+    }
+    if (answers.powershellAliases === true) {
+      addPowerShellAliasesToPowerShellProfile();
+    }
+  }
+  renderSummary(answers);
+}
+
+export async function runInstaller(
+  applyPath?: string,
+  options: { dryRun?: boolean; profileIndex: number | undefined } = {
+    profileIndex: undefined,
+  }
+): Promise<void> {
+  if (applyPath !== undefined) {
+    await runNonInteractiveInstaller(applyPath, options);
+    return;
+  }
+
   console.log(pc.cyan(BANNER));
   intro(pc.bold('Pimp up your Terminal.'));
 
@@ -780,6 +1082,7 @@ export async function runInstaller(): Promise<void> {
       { value: 'Features', label: 'Features', hint: 'Optional extras' },
       { value: 'Installer', label: 'Installer', hint: 'Install programs' },
       { value: 'Other', label: 'Other', hint: 'Backups and recovery' },
+      { value: 'Remove', label: 'Remove', hint: 'Remove features and settings' },
     ];
     if (Object.keys(answers).length > 0) {
       areaOptions.push({
@@ -916,18 +1219,78 @@ export async function runInstaller(): Promise<void> {
       return;
     }
 
+    if (selectedArea === 'Remove') {
+      const removableOptions = [
+        { value: 'terminalIcons', label: 'PowerShell file icons', hint: 'Remove Terminal-Icons block from profile' },
+        { value: 'historyPreview', label: 'Command history preview', hint: 'Remove PSReadLine history preview block' },
+        { value: 'lazyGit', label: 'Lazy Git (lg)', hint: 'Remove lazy git block from profile' },
+        { value: 'crossDriveCd', label: 'Smart cd (zoxide-style)', hint: 'Remove cross-drive cd block from profile' },
+        { value: 'treeListing', label: 'Tree-style ls', hint: 'Remove tree-style ls block from profile' },
+        { value: 'powershellAliases', label: 'PowerShell aliases', hint: 'Remove aliases block from profile' },
+        { value: 'back', label: 'Back', hint: 'Choose another area' },
+      ];
+
+      const selectedFeature = bail(
+        await select<string>({
+          message: 'Remove',
+          options: removableOptions,
+          initialValue: removableOptions[0]!.value,
+        })
+      );
+      if (selectedFeature === 'back') continue;
+
+      const featureToBlock: Record<string, string> = {
+        terminalIcons: 'terminal icons',
+        historyPreview: 'command history preview',
+        lazyGit: 'lazy git',
+        crossDriveCd: 'cross-drive cd',
+        treeListing: 'tree-style ls',
+        powershellAliases: 'powershell aliases',
+      };
+
+      const blockName = featureToBlock[selectedFeature];
+      if (blockName) {
+        try {
+          removePowerShellProfileBlock(blockName);
+          delete answers[selectedFeature];
+          log.info(pc.dim(`Removed ${removableOptions.find((o) => o.value === selectedFeature)!.label}.`));
+        } catch (error) {
+          log.warn(
+            pc.yellow(
+              `Could not remove ${selectedFeature}: ${error instanceof Error ? error.message : String(error)}`
+            )
+          );
+        }
+      }
+      continue;
+    }
+
     while (true) {
       const visibleSettings = selectableSettings.filter(
         (setting) =>
           setting.group === selectedArea &&
           !(answers.terminalIcons === true && setting.id === 'fontFace')
       );
-      const options = visibleSettings.map((setting) => ({
-        value: setting.id,
-        label:
-          answers[setting.id] === undefined ? setting.label : `${pc.green('●')} ${setting.label}`,
-        hint: setting.hint,
-      }));
+      const options = visibleSettings.flatMap((setting) => {
+        const base: { value: string; label: string; hint: string }[] = [
+          {
+            value: setting.id,
+            label:
+              answers[setting.id] === undefined
+                ? setting.label
+                : `${pc.green('●')} ${setting.label}`,
+            hint: setting.hint,
+          },
+        ];
+        if (answers[setting.id] !== undefined) {
+          base.push({
+            value: `reset:${setting.id}`,
+            label: `Reset ${setting.label}`,
+            hint: 'Reset to default',
+          });
+        }
+        return base;
+      });
       options.push({
         value: 'back',
         label: 'Back',
@@ -951,6 +1314,36 @@ export async function runInstaller(): Promise<void> {
         })
       );
       if (selectedId === 'back') break;
+
+      if (selectedId.startsWith('reset:')) {
+        const settingId = selectedId.slice('reset:'.length);
+        const settingToReset = selectableSettings.find(
+          (candidate) => candidate.id === settingId && candidate.group === selectedArea
+        );
+        if (!settingToReset) {
+          throw new Error(`Unknown setting to reset: ${settingId}`);
+        }
+        delete answers[settingId];
+        if (settingToReset.jsonPath) {
+          try {
+            const settingsPathForReset = findSettingsPath();
+            if (settingsPathForReset) {
+              const content = readSettingsFile(settingsPathForReset);
+              const resetContent = setSetting(content, settingToReset.jsonPath, undefined);
+              writeSettingsFile(settingsPathForReset, resetContent);
+              log.info(pc.dim(`Reset ${settingToReset.label} to default.`));
+            }
+          } catch (error) {
+            log.warn(
+              pc.yellow(
+                `Could not reset ${settingId}: ${error instanceof Error ? error.message : String(error)}`
+              )
+            );
+          }
+        }
+        initialPickerValue = settingId;
+        continue;
+      }
 
       const setting = selectableSettings.find(
         (candidate) => candidate.id === selectedId && candidate.group === selectedArea

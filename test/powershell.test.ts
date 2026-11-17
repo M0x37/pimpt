@@ -11,8 +11,12 @@ vi.mock('node:child_process', () => ({
 import {
   addCrossDriveCdToPowerShellProfile,
   addLazyGitToPowerShellProfile,
+  addPowerShellAliasesToPowerShellProfile,
+  addTerminalIconsToPowerShellProfile,
+  addHistoryPreviewToPowerShellProfile,
   addTreeListingToPowerShellProfile,
   readPowerShellProfileFeatures,
+  removePowerShellProfileBlock,
 } from '../src/powershell';
 
 function decodeProfileBlock(script: string): string {
@@ -146,6 +150,129 @@ describe('readPowerShellProfileFeatures', () => {
       });
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('addTerminalIconsToPowerShellProfile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('adds the Terminal-Icons import block', () => {
+    vi.stubGlobal('process', { platform: 'win32' });
+    try {
+      addTerminalIconsToPowerShellProfile();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const scripts = mocks.execFileSync.mock.calls.map((call) => call[1][4] as string);
+    const block = scripts[0] ? decodeProfileBlock(scripts[0]) : undefined;
+
+    expect(block).toContain('# >>> pimpt terminal icons >>>');
+    expect(block).toContain('Import-Module Terminal-Icons');
+    expect(block).toContain('# <<< pimpt terminal icons <<<');
+  });
+});
+
+describe('addHistoryPreviewToPowerShellProfile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('adds the PSReadLine history preview block', () => {
+    vi.stubGlobal('process', { platform: 'win32' });
+    try {
+      addHistoryPreviewToPowerShellProfile();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const scripts = mocks.execFileSync.mock.calls.map((call) => call[1][4] as string);
+    const block = scripts[0] ? decodeProfileBlock(scripts[0]) : undefined;
+
+    expect(block).toContain('# >>> pimpt command history preview >>>');
+    expect(block).toContain("PredictionSource History");
+    expect(block).toContain('# <<< pimpt command history preview <<<');
+  });
+});
+
+describe('addPowerShellAliasesToPowerShellProfile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('adds the aliases block', () => {
+    vi.stubGlobal('process', { platform: 'win32' });
+    try {
+      addPowerShellAliasesToPowerShellProfile();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const scripts = mocks.execFileSync.mock.calls.map((call) => call[1][4] as string);
+    const block = scripts[0] ? decodeProfileBlock(scripts[0]) : undefined;
+
+    expect(block).toContain('# >>> pimpt powershell aliases >>>');
+    expect(block).toContain('Set-Alias ll Get-ChildItem');
+    expect(block).toContain('# <<< pimpt powershell aliases <<<');
+  });
+});
+
+describe('removePowerShellProfileBlock', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('removes a matching block from the profile', () => {
+    const profile = [
+      '# >>> pimpt terminal icons >>>',
+      'Import-Module Terminal-Icons',
+      '# <<< pimpt terminal icons <<<',
+      '# some other content',
+      'Write-Host hello',
+    ].join('\r\n');
+    mocks.execFileSync.mockReturnValueOnce(
+      Buffer.from(profile, 'utf16le').toString('base64')
+    );
+    mocks.execFileSync.mockReturnValue(undefined);
+
+    vi.stubGlobal('process', { platform: 'win32' });
+    try {
+      removePowerShellProfileBlock('terminal icons');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const scripts = mocks.execFileSync.mock.calls.map((call) => call[1][4] as string);
+    const writeScript = scripts[scripts.length - 1];
+    expect(writeScript).toContain('Set-Content');
+    expect(writeScript).toContain('IndexOf');
+    expect(writeScript).toContain('Substring');
+    expect(writeScript).not.toContain('terminal icons');
+  });
+
+  it('does nothing when the profile does not exist', () => {
+    mocks.execFileSync.mockImplementation(() => {
+      throw new Error('Profile not found');
+    });
+
+    vi.stubGlobal('process', { platform: 'win32' });
+    try {
+      expect(() => removePowerShellProfileBlock('terminal icons')).toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('skips without throwing on non-Windows', () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    try {
+      expect(() => removePowerShellProfileBlock('terminal icons')).not.toThrow();
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
     }
   });
 });
