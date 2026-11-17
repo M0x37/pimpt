@@ -59,9 +59,33 @@ if ($profileContent -notmatch [regex]::Escape($beginMarker)) {
   runPowerShell(script, operation);
 }
 
+export function removePowerShellProfileBlock(feature: string): void {
+  const beginMarkerStr = `# >>> pimpt ${feature} >>>`;
+  const endMarkerStr = `# <<< pimpt ${feature} <<<`;
+  const encodedBegin = Buffer.from(beginMarkerStr, 'utf16le').toString('base64');
+  const encodedEnd = Buffer.from(endMarkerStr, 'utf16le').toString('base64');
+  const script = String.raw`$ErrorActionPreference = 'Stop'
+$profilePath = $PROFILE.CurrentUserCurrentHost
+if (-not (Test-Path -LiteralPath $profilePath)) { exit 0 }
+$content = Get-Content -LiteralPath $profilePath -Raw
+$begin = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encodedBegin}'))
+$end = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encodedEnd}'))
+$beginIdx = $content.IndexOf($begin)
+$endIdx = $content.IndexOf($end)
+if ($beginIdx -ge 0 -and $endIdx -ge 0) {
+  $endIdx = $endIdx + $end.Length
+  $newContent = ($content.Substring(0, $beginIdx) + $content.Substring($endIdx)).TrimStart([char]10, [char]13)
+  Set-Content -LiteralPath $profilePath -Value $newContent -Encoding UTF8
+}`;
+  runPowerShell(script, `Removing pimpt ${feature} from the Windows PowerShell profile`);
+}
+
 export function runPowerShell(script: string, operation: string): void {
   if (process.platform !== 'win32') {
-    throw new Error(`${operation} is only supported on Windows.`);
+    console.warn(
+      `[pimpt] ${operation} is only supported on Windows. Skipping.`
+    );
+    return;
   }
 
   try {

@@ -7,6 +7,7 @@ export {
   addHistoryPreviewToPowerShellProfile,
   addPowerShellAliasesToPowerShellProfile,
   addPowerShellProfileBlock,
+  removePowerShellProfileBlock,
   runPowerShell,
   readPowerShellProfileFeatures,
   clearProfileCacheForTesting,

@@ -72,10 +72,14 @@ const fontAssets: Record<string, FontAsset> = {
   },
 };
 
-function assertWindows(): void {
+function assertWindows(): boolean {
   if (process.platform !== 'win32') {
-    throw new Error('Automatic font installation is only available on Windows.');
+    console.warn(
+      '[pimpt] Automatic font installation is only available on Windows. Skipping.'
+    );
+    return false;
   }
+  return true;
 }
 
 function queryFontRegistry(key: string): string {
@@ -98,7 +102,7 @@ function queryFontRegistry(key: string): string {
 }
 
 export function isFontInstalled(fontFamily: string): boolean {
-  assertWindows();
+  if (!assertWindows()) return false;
   const family = fontFamily.toLocaleLowerCase('en-US');
   return fontRegistryKeys
     .map(queryFontRegistry)
@@ -182,7 +186,7 @@ async function saveAndRegisterFont(
 }
 
 export async function installFont(fontFamily: string): Promise<void> {
-  assertWindows();
+  if (!assertWindows()) return;
   const asset = fontAssets[fontFamily];
   if (!asset) {
     throw new Error(`Automatic installation is not supported for ${fontFamily}.`);
@@ -208,7 +212,7 @@ export async function installFont(fontFamily: string): Promise<void> {
 }
 
 export async function installNerdFont(): Promise<void> {
-  assertWindows();
+  if (!assertWindows()) return;
   if (isFontInstalled(NERD_FONT_FAMILY)) return;
 
   const localAppData = process.env.LOCALAPPDATA;

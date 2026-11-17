@@ -77,19 +77,57 @@ The npm package is scoped because npm does not allow this project to publish und
 ## Usage
 
 ```text
-pimpt              Start the interactive installer
-pimpt --help       Show help
-pimpt --version    Show the installed version
+pimpt                   Start the interactive installer
+pimpt --apply <path>    Apply settings non-interactively from a JSON config file
+pimpt --dry-run <path>  Preview changes from a JSON config file without writing
+pimpt config export <path>  Export the current pimpt configuration to a JSON file
+pimpt config import <path>  Import a pimpt configuration from a JSON file
+pimpt --help            Show help
+pimpt --version         Show the installed version
 ```
 
 When you start `pimpt`, the current version number is shown below the banner.
 
-1. **Choose an area** — `Appearance`, `Features`, `Installer`, or `Other`
-2. **Pick settings** — already-configured items are marked
+1. **Choose an area** — `Appearance`, `Features`, `Installer`, `Remove`, or `Other`
+2. **Pick settings** — already-configured items are marked; set items offer a "Reset" option
 3. **Review the summary** — all selected values are listed before anything is written
 4. **Confirm** — changes are applied only after you say yes
 
 Existing Windows Terminal settings are detected and pre-filled so you can see what is already configured.
+
+## Non-interactive mode (`--apply`)
+
+`pimpt --apply <config.json>` reads a JSON configuration file and applies the settings without any interactive prompts. The config file contains an `answers` object mapping setting IDs to values:
+
+```json
+{
+  "answers": {
+    "background": "#2E3440",
+    "transparency": "80",
+    "fontFace": "Cascadia Code",
+    "historyPreview": true,
+    "lazyGit": true
+  }
+}
+```
+
+Unknown keys are ignored with a warning. This is useful for scripting and rolling out the same configuration to multiple machines.
+
+## Dry-run (`--dry-run`)
+
+`pimpt --dry-run <config.json>` shows the planned changes (the resulting `settings.json` content) without writing anything or creating a backup. Use it to review what `--apply` would do before executing.
+
+## Config export / import
+
+`pimpt config export <path>` writes the current pimpt configuration (detected from `settings.json` and the PowerShell profile) to a JSON file. `pimpt config import <path>` reads such a file and applies it directly to `settings.json` and the PowerShell profile.
+
+## Remove area
+
+The **Remove** menu area lets you uninstall individual PowerShell features (Terminal-Icons, history preview, Lazy Git, smart cd, tree-style ls, aliases) by removing their marked blocks from your PowerShell profile.
+
+## Undo / Reset
+
+In any settings area, already-configured items offer a "Reset <label>" option that removes the setting from `settings.json` and from your selection.
 
 ## Settings safety
 
