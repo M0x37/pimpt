@@ -124,9 +124,11 @@ function writeConfig(dir: string, name: string, content: Record<string, unknown>
 }
 
 let configDir: string;
+const originalPlatform = process.platform;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
   vi.stubEnv('WT_SESSION', '');
   configDir = mkdtempSync(join(tmpdir(), 'pimpt-dryrun-test-'));
 
@@ -162,6 +164,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
   rmSync(configDir, { recursive: true, force: true });
 });
 

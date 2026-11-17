@@ -107,11 +107,13 @@ import {
 
 const settingsPath =
   'C:/Users/test/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json';
+const originalPlatform = process.platform;
 
 let configDir: string;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
   vi.stubEnv('WT_SESSION', '');
   configDir = mkdtempSync(join(tmpdir(), 'pimpt-config-test-'));
 
@@ -156,6 +158,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
   rmSync(configDir, { recursive: true, force: true });
 });
 

@@ -127,6 +127,7 @@ import {
 
 const settingsPath =
   'C:/Users/test/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json';
+const originalPlatform = process.platform;
 
 function summaryText(): string {
   return (
@@ -146,6 +147,7 @@ function writeConfig(name: string, content: string | Record<string, unknown>): s
 
 beforeEach(() => {
   vi.clearAllMocks();
+  Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
   vi.stubEnv('WT_SESSION', '');
   process.exitCode = 0;
   configDir = mkdtempSync(join(tmpdir(), 'pimpt-noninteractive-test-'));
@@ -182,6 +184,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
   rmSync(configDir, { recursive: true, force: true });
 });
 
@@ -312,7 +315,6 @@ describe('runNonInteractiveInstaller', () => {
   });
 
   it('skips with a hint instead of aborting on non-Windows platforms', async () => {
-    const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
     try {
       const configPath = writeConfig('config.json', { answers: { background: '#2E3440' } });
@@ -320,7 +322,7 @@ describe('runNonInteractiveInstaller', () => {
       expect(writeSettingsFile).not.toHaveBeenCalled();
       expect(mocks.logInfo).toHaveBeenCalledWith(expect.stringContaining('pimpt'));
     } finally {
-      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
     }
   });
 });
