@@ -1,122 +1,155 @@
-# pimpt
+<div align="center">
+  <img src="https://cdn.iconscout.com/icon/free/png-512/free-terminal-icon-svg-download-png-7523117.png" width="96" height="96" alt="Terminal-Icon">
+  <h1>pimpt</h1>
+  <p>Interaktiver Setup-Assistent für Windows Terminal und PowerShell.</p>
+  <p>
+    <a href="https://github.com/M0x37/pimpt/actions/workflows/ci.yml"><img src="https://github.com/M0x37/pimpt/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="https://www.npmjs.com/package/@m0x373/pimpt"><img src="https://img.shields.io/npm/v/%40m0x373%2Fpimpt?logo=npm" alt="npm-Version"></a>
+    <a href="https://www.npmjs.com/package/@m0x373/pimpt"><img src="https://img.shields.io/npm/dm/%40m0x373%2Fpimpt?logo=npm" alt="npm-Downloads"></a>
+    <a href="https://www.npmjs.com/package/@m0x373/pimpt"><img src="https://img.shields.io/npm/l/%40m0x373%2Fpimpt" alt="Lizenz"></a>
+    <a href="https://github.com/M0x37/pimpt"><img src="https://img.shields.io/github/stars/M0x37/pimpt?style=flat&logo=github" alt="GitHub-Sterne"></a>
+  </p>
+</div>
 
-An interactive setup assistant for Windows Terminal. Choose terminal settings and PowerShell features from a guided menu, review the summary, and confirm before changes are applied.
+## Überblick
 
-## What pimpt actually does
+`pimpt` führt dich durch die Konfiguration von Windows Terminal. Einstellungen werden
+gesammelt, als Zusammenfassung angezeigt und erst nach deiner Bestätigung geschrieben.
+Zusätzlich können nützliche PowerShell-Funktionen aktiviert und Standardprogramme über
+`winget` installiert werden.
 
-**Terminal settings (written to Windows Terminal `settings.json`)**
+## Funktionen
 
-- **Transparency / acrylic** — window opacity (off, 90%, 80%, 70%, 50%, fully transparent)
-- **Background color** — Midnight, Nord, Dracula, Solarized Dark, custom hex, or keep current
-- **Background image** — path to a local image (leave empty to skip)
-- **Font** — Cascadia Mono, Cascadia Code, Consolas, JetBrains Mono, Fira Code, Hack, Source Code Pro, IBM Plex Mono (missing fonts can be installed automatically), or keep current
-- **Font size** — 10, 11, 12, 14, 16, 18 pt
-- **Cursor shape** — bar, block, underline, vintage, or keep current
-- **Color scheme** — Campbell, One Half Dark, Solarized Dark, Tango Dark, Vintage, or keep current
-- **Starting directory** — default shell folder; relative paths such as `~/Projects` resolve from your user folder, environment variables such as `%USERPROFILE%` are supported
+### Windows-Terminal-Einstellungen
 
-**Window & tabs**
-- Launch mode (windowed, maximized, fullscreen, focus mode, maximized focus)
-- Application theme (system, dark, light)
-- Tab bar position (tabs in titlebar, separate tab row)
-- Tab width (equal, title length, compact)
+- Transparenz und Acryl-Effekt
+- Hintergrundfarbe: Midnight, Nord, Dracula, Solarized Dark oder eigener Hex-Wert
+- Lokales Hintergrundbild
+- Schriftart und Schriftgröße, inklusive automatischer Installation fehlender Fonts
+- Cursorform
+- Farbschema
+- Startverzeichnis mit Unterstützung für `~`, Umgebungsvariablen und Laufwerkswechsel
+- Startmodus: Fenster, maximiert, Vollbild, Fokus oder maximierter Fokus
+- Anwendungsthema und Position der Tab-Leiste
+- Tab-Breite
+- Profil-Icon und eigener Tab-Titel
+- Copy-on-select, Schließen-Bestätigung, Mausfokus und bereinigtes Einfügen
 
-**Profile**
-- Profile icon style (classic, rocket, bolt, code)
-- Custom tab title (leave empty for automatic)
+### PowerShell-Funktionen
 
-**Behavior**
-- Copy on select
-- Confirm close (ask before closing windows with many tabs)
-- Focus follows mouse
-- Trim paste (remove trailing whitespace when pasting)
+Die Funktionen werden in markierten Blöcken zum Profil des aktuellen Benutzers hinzugefügt.
+Dadurch bleiben sie nachvollziehbar und können später gezielt entfernt werden.
 
-**PowerShell features (added to your current user's PowerShell profile in marked blocks)**
+- Datei-Icons mit Terminal-Icons und Hack Nerd Font Mono
+- History-Vorschau mit PSReadLine
+- Lazy Git über den Befehl `lg`
+- Intelligentes `cd` mit Ordnerverlauf, Laufwerkswechseln und interaktiver Auswahl
+- Baumansicht für `ls`
+- Praktische Aliase wie `ll`, `la`, `..`, `grep`, `wget` und `curl`
+- Ausblenden des PowerShell-Startbanners
 
-- **PowerShell file icons** — installs Terminal-Icons and switches Windows Terminal to Hack Nerd Font Mono (installed automatically if missing)
-- **Command history preview** — installs PSReadLine 2.4.5; Up/Down arrows browse recent commands in a scrollable list view
-- **Lazy Git (`lg`)** — interactive Git UI for status, staging, commit, push/pull, branches, log, stash; Tab completion for Git commands, branches, and files
-- **Smart `cd` (zoxide-style)** — remembers folders you visit and jumps by keyword (`cd pimpt`); supports drive switches (`cd D`, `cd D:`); interactive picks with `cdi`. `Set-Location` remains available.
-- **Tree-style `ls`** — colored directory tree (`-Depth`, `-Limit`, `-All`, `-Force`). Original `Get-ChildItem` stays available as `gci`.
-- **PowerShell aliases** — `ll`, `la`, `..`, `...`, `grep`, `wget`, `curl`
-- **Hide PowerShell startup banner** — adds `-NoLogo` to Windows PowerShell profile command lines
+### Programm-Installer
 
-**Installer (via winget)**
+Über `winget` können folgende Programme installiert werden:
 
-- Git — version control
-- Python — programming language
-- Node.js — JavaScript runtime
-- Visual Studio Code — code editor
-- Docker Desktop — container platform
+- Git
+- Python
+- Node.js
+- Visual Studio Code
+- Docker Desktop
 
-Select **Installer** from the main menu, pick a program, and confirm. winget is required.
+## Voraussetzungen
 
-## Requirements
+- Windows 10 oder neuer
+- Windows Terminal: Stable, Preview oder Canary
+- Node.js 22 oder neuer
+- PowerShell für die PowerShell-Funktionen
+- `winget` für die Programm-Installation
 
-- Windows 10 or later
-- Windows Terminal (Stable, Preview, or Canary)
-- Node.js 22 or later
-- PowerShell (for PowerShell profile features)
+Für optionale Funktionen und fehlende Schriftarten kann eine Internetverbindung erforderlich
+sein.
 
-Some optional features install modules from the PowerShell Gallery or download fonts, so an internet connection may be required.
-
-## Install
+## Installation
 
 ```powershell
 npm install --global @m0x373/pimpt
 ```
 
-Then start the installer:
+Danach startest du den Assistenten:
 
 ```powershell
 pimpt
 ```
 
-The npm package is scoped because npm does not allow this project to publish under the unscoped name `pimpt`.
+Das Paket ist unter dem Scope `@m0x373` veröffentlicht, weil der unscoped Name `pimpt`
+auf npm nicht verfügbar ist.
 
-## Usage
+## Verwendung
 
 ```text
-pimpt              Start the interactive installer
-pimpt --help       Show help
-pimpt --version    Show the installed version
+pimpt              Interaktiven Assistenten starten
+pimpt --help       Hilfe anzeigen
+pimpt --version    Installierte Version anzeigen
 ```
 
-When you start `pimpt`, the current version number is shown below the banner.
+Der Ablauf:
 
-1. **Choose an area** — `Appearance`, `Features`, `Installer`, or `Other`
-2. **Pick settings** — already-configured items are marked
-3. **Review the summary** — all selected values are listed before anything is written
-4. **Confirm** — changes are applied only after you say yes
+1. Bereich auswählen: `Appearance`, `Features`, `Installer` oder `Other`
+2. Einstellungen auswählen; bereits aktive Optionen werden erkannt
+3. Zusammenfassung der Änderungen prüfen
+4. Änderungen bestätigen
 
-Existing Windows Terminal settings are detected and pre-filled so you can see what is already configured.
+Der Assistent liest vorhandene Windows-Terminal-Einstellungen ein und verwendet sie als
+Ausgangswerte.
 
-## Settings safety
+## Sicherheit und Wiederherstellung
 
-- Windows Terminal settings are edited as JSONC, preserving comments and formatting where possible.
-- A backup of `settings.json` is created before any change.
-- Backups are listed under **Other → Restore settings backup** and can be restored at any time.
-- The installer asks for confirmation before applying the selected configuration.
-- PowerShell features are added to the current user's PowerShell profile in marked blocks, so they can be identified and removed later.
+- `settings.json` wird als JSONC verarbeitet; Kommentare und Formatierung bleiben nach
+  Möglichkeit erhalten.
+- Vor jeder Änderung wird ein Backup erstellt.
+- Backups sind über `Other` und `Restore settings backup` erreichbar.
+- Ohne Bestätigung werden keine Änderungen angewendet.
+- PowerShell-Erweiterungen werden in markierten Profilblöcken gespeichert.
 
-## Development
+## Entwicklung
 
 ```powershell
-npm install          Install dependencies
-npm test             Run the test suite
-npm run typecheck    Type-check with TypeScript
-npm run lint         Lint source and tests
-npm run format       Format with Prettier
-npm run build        Build the ESM bundle to dist/
+npm install            Abhängigkeiten installieren
+npm test               Test-Suite ausführen
+npm run typecheck      TypeScript prüfen
+npm run lint           Quellen und Tests linten
+npm run format         Mit Prettier formatieren
+npm run format:check   Formatierung prüfen
+npm run build          ESM-Bundle nach dist/ bauen
 ```
 
-Requires Node.js 22+.
+Der Build wird vor der Veröffentlichung automatisch über `prepublishOnly` ausgeführt.
 
-## License
+## Projektstruktur
 
-ISC, as declared in the package metadata.
+```text
+src/
+  index.ts             CLI-Einstiegspunkt
+  installer.ts         Interaktiver Setup-Assistent
+  settings.ts          Einstellungsdefinitionen
+  wtsettings.ts        Lesen, Schreiben und Backups von settings.json
+  powershell.ts        PowerShell-Profilfunktionen
+  fonts.ts             Font-Erkennung und Installation
+  summary.ts           Zusammenfassung der Auswahl
+test/                  Vitest-Tests
+```
+
+## Lizenz
+
+Dieses Projekt steht unter der [ISC-Lizenz](https://opensource.org/license/isc-license-txt),
+wie in den Paketmetadaten festgelegt.
+
+Das Header-Icon stammt von [IconScout](https://iconscout.com) und ist als kostenloses
+Asset von [Widyatmoko P.Y](https://iconscout.com/contributors/widyatmoko) veröffentlicht:
+[Terminal-Icon](https://iconscout.com/free-icon/terminal-9243450).
 
 ## Links
 
-- [Source repository](https://github.com/M0x37/pimpt)
-- [npm package](https://www.npmjs.com/package/@m0x373/pimpt)
+- [Quellcode auf GitHub](https://github.com/M0x37/pimpt)
+- [npm-Paket](https://www.npmjs.com/package/@m0x373/pimpt)
+- [Issues und Fehlerberichte](https://github.com/M0x37/pimpt/issues)
