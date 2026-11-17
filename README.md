@@ -129,17 +129,6 @@ The **Remove** menu area lets you uninstall individual PowerShell features (Term
 
 In any settings area, already-configured items offer a "Reset <label>" option that removes the setting from `settings.json` and from your selection.
 
-## Error reporting (Sentry)
-
-pimpt can send unexpected errors to [Sentry](https://sentry.io) for debugging. Set the `PIMPT_SENTRY_DSN` environment variable to enable it:
-
-```powershell
-$env:PIMPT_SENTRY_DSN = "https://<key>@sentry.io/<project>"
-pimpt
-```
-
-Without a DSN, Sentry is disabled and no data is sent. Windows Terminal settings content and personal file paths are stripped before any event is sent.
-
 ## Settings safety
 
 - Windows Terminal settings are edited as JSONC, preserving comments and formatting where possible.
