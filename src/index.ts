@@ -2,6 +2,7 @@
 
 import { readFileSync } from 'node:fs';
 import pc from 'picocolors';
+import * as Sentry from '@sentry/node';
 import { runInstaller, exportConfig, importConfig, applyAnswers } from './installer.js';
 import { findSettingsPath } from './wtsettings.js';
 
@@ -10,6 +11,35 @@ function readVersion(): string {
     version: string;
   };
   return pkg.version;
+}
+
+function initSentry(): void {
+  const dsn = process.env.PIMPT_SENTRY_DSN;
+  const options: Sentry.NodeOptions = {
+    enabled: !!dsn,
+    release: `pimpt@${readVersion()}`,
+    environment: process.env.PIMPT_SENTRY_ENVIRONMENT ?? 'production',
+    tracesSampleRate: 0.0,
+    sendDefaultPii: false,
+    beforeSend(event) {
+      // Never send Windows Terminal settings content or personal paths to Sentry.
+      if (event.request?.url && /settings\.json/i.test(event.request.url)) {
+        return null;
+      }
+      if (event.extra && typeof event.extra === 'object') {
+        for (const key of Object.keys(event.extra)) {
+          if (/path|settings|profile/i.test(key)) {
+            delete event.extra[key];
+          }
+        }
+      }
+      return event;
+    },
+  };
+  if (dsn) {
+    options.dsn = dsn;
+  }
+  Sentry.init(options);
 }
 
 function printHelp(): void {
@@ -34,6 +64,7 @@ ${pc.bold('Status')}
 }
 
 export async function main(): Promise<void> {
+  initSentry();
   const args = process.argv.slice(2);
 
   if (args.includes('--help') || args.includes('-h')) {
@@ -124,8 +155,27 @@ if (import.meta.main) {
   try {
     await main();
   } catch (error) {
+    Sentry.captureException(
+      error instanceof Error ? error : new Error(String(error)),
+      { tags: { cli: 'pimpt' } }
+    );
     console.error(pc.red('pimpt failed:'));
     console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
     process.exitCode = 1;
   }
 }
+
+process.on('unhandledRejection', (reason) => {
+  Sentry.captureException(
+    reason instanceof Error ? reason : new Error(String(reason)),
+    { tags: { cli: 'pimpt', type: 'unhandledRejection' } }
+  );
+});
+
+process.on('uncaughtException', (error) => {
+  Sentry.captureException(error, { tags: { cli: 'pimpt', type: 'uncaughtException' } });
+  console.error(pc.red('pimpt crashed:'));
+  console.error(error.stack ?? error.message);
+  process.exitCode = 1;
+  process.exit(1);
+});
